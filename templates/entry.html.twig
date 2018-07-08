@@ -1,0 +1,47 @@
+{% extends 'base.html.twig' %}
+
+{% block body %}
+  <html>
+      <body>
+          {{ entry.content|raw }}
+      </body>
+  </html>
+{% endblock %}
+
+{% block javascripts %}
+  <script>
+    function detectScroll(event) {
+      var pageSize = window.innerWidth;
+      var xPosition = event.clientX;
+
+      if (xPosition > pageSize / 2) {
+        scrollForward();
+
+        return;
+      }
+
+      scrollBackward();
+    }
+
+    function scrollForward() {
+      var pageSize = window.innerHeight;
+      var currentPosition = window.pageYOffset;
+
+      window.scrollTo(0, currentPosition + pageSize);
+    }
+
+    function scrollBackward() {
+      var pageSize = window.innerHeight;
+      var currentPosition = window.pageYOffset;
+
+      window.scrollTo(0, currentPosition - pageSize);
+    }
+
+    document.addEventListener('click', detectScroll);
+    document.ontouchmove = function (event) {
+      event.preventDefault();
+    };
+
+    document.getElementsByTagName("body")[0].style = 'overflow: hidden;';
+  </script>
+{% endblock %}

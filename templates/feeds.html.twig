@@ -1,0 +1,14 @@
+{% extends 'base.html.twig' %}
+
+{% block body %}
+    {% for feed in feeds %}
+        <ul>
+            <li>{{ feed.title }}</li>
+            <ul>
+                {% for entry in feed.entries %}
+                    <li><a href="{{ path('entry', {feed: feed.title|url_encode, entry: entry.title|url_encode}) }}">{{ entry.title }}</a></li>
+                {% endfor %}
+            </ul>
+        </ul>
+    {% endfor %}
+{% endblock %}
