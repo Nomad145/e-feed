@@ -2,7 +2,7 @@
 
 {% block body %}
   <html>
-      <body>
+      <body style="height: 100%; overflow: hidden;">
           {{ entry.content|raw }}
       </body>
   </html>
@@ -38,10 +38,9 @@
     }
 
     document.addEventListener('click', detectScroll);
+
     document.ontouchmove = function (event) {
       event.preventDefault();
     };
-
-    document.getElementsByTagName("body")[0].style = 'overflow: hidden;';
   </script>
 {% endblock %}
